@@ -70,9 +70,11 @@
   function render() {
     var V = view(), P = V.prep, R = V.rd, mine = myTok(), now = Date.now();
     var hn = $('heroNum'), has = R.length > 0;
-    hn.textContent = has ? R[0].n : '…';
+    var hero = $('hero');
+    hn.textContent = has ? R[0].n : '···';
     $('heroLbl').textContent = has ? 'Latest order ready' : 'No orders ready yet';
-    $('heroCtr').textContent = has ? 'Please collect from the counter' : '';
+    $('heroCtr').textContent = has ? 'Please collect from the counter' : 'When staff mark an order ready, it shows up here.';
+    if (hero) hero.classList.toggle('is-empty', !has);
     var key = has ? R[0].n + '|' + R[0].r : null;
     if (!first && key !== null && key !== lastKey) {
       hn.classList.remove('pop'); void hn.offsetWidth; hn.classList.add('pop');
@@ -94,28 +96,40 @@
     var ab = $('alertsBtn'), cb = $('collBtn'), ag = $('againBtn');
     ab.hidden = true; cb.hidden = !isReady; ag.hidden = true;
 
+    function setBadge(kind, label) {
+      var b = $('mBadge');
+      if (!b) return;
+      b.className = 'badge ' + kind;
+      b.textContent = label;
+    }
+
     if (o) {
       $('myNum').textContent = o.n;
       var s = $('mStatus'), u = $('mSub');
       if (o.c) {
+        setBadge('collected', 'Collected');
         s.textContent = 'Collected';
         u.textContent = 'Enjoy your order.';
         ag.hidden = false; ag.textContent = 'Track another order';
       } else if (isReady) {
+        setBadge('ready', 'Ready');
         s.textContent = 'Your order is ready';
         u.textContent = 'Please collect it from the counter.';
       } else if (o.r) {
+        setBadge('timeout', 'Timed out');
         s.textContent = 'Order timed out';
         u.textContent = 'Please ask at the counter.';
         ag.hidden = false; ag.textContent = 'Track another order';
       } else {
         var pi = P.findIndex(function (x) { return x.n === mine; });
+        setBadge('preparing', 'Preparing');
         s.textContent = 'Being prepared';
         u.textContent = (pi <= 0 ? 'You’re next. ' : pi + (pi === 1 ? ' order' : ' orders') + ' ahead of you. ') +
           (alertsOn ? 'We will alert you.' : 'We can alert you when it’s ready.');
         ab.hidden = alertsOn;
       }
     } else if (mine !== null) {
+      setBadge('waiting', 'Waiting');
       $('myNum').textContent = mine;
       $('mStatus').textContent = 'Not on the board yet';
       $('mSub').textContent = 'It shows here once staff add your token.';
@@ -131,14 +145,16 @@
     var g = $('grid'); g.innerHTML = '';
     if (!R.length) {
       g.style.columns = '1';
-      g.innerHTML = '<div class="empty">Ready orders will appear here.</div>';
+      g.innerHTML = '<div class="empty"><div class="empty-icon">#</div><p>Ready orders will appear here.</p></div>';
     } else {
       g.style.columns = '';
       var hs = [100, 150, 120, 180, 110, 140];
       R.forEach(function (h, i) {
         var c = document.createElement('div');
         c.className = 'pin' + (mine === h.n ? ' me' : '');
-        c.style.background = 'var(--p' + (i % 6) + ')';
+        if (mine !== h.n) {
+          c.style.background = 'var(--p' + (i % 6 === 1 ? 0 : i % 6) + ')';
+        }
         c.style.minHeight = hs[i % 6] + 'px';
         var m = Math.floor((now - h.r) / 60000);
         c.innerHTML = '<span>' + (mine === h.n ? 'That’s you. ' : '') +

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#e60023">
+<meta name="theme-color" content="#e11d2e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Order Board Staff</title>
@@ -16,7 +16,7 @@
 <header class="top">
   <div class="logo"><span class="dot">#</span>Order Board Staff</div>
   <div class="acts">
-    <button class="ib" id="snd" aria-pressed="false">Sound off</button>
+    <button class="ib" id="snd" aria-pressed="false" aria-label="Toggle sound">Sound off</button>
   </div>
 </header>
 <main>
@@ -25,9 +25,17 @@
       <div class="panel">
         <div class="entry ph" id="entry">Type a token number</div>
         <div class="keys" id="keys"></div>
-        <div class="btnrow"><button class="btn red" id="mainBtn" disabled>Add token</button><button class="btn" id="handRem" hidden>Cancel order</button></div>
+        <div class="btnrow">
+          <button class="btn red" id="mainBtn" disabled>Add token</button>
+          <button class="btn ghost" id="handRem" hidden>Cancel order</button>
+        </div>
         <p class="hint" id="keyHint"></p>
-        <div class="gen"><span>Next number (1 to 150, reused)</span><b id="genNum">1</b><button class="btn red" id="genBtn">Give this token</button><button class="link" id="genReset">Restart numbering at 1</button></div>
+        <div class="gen">
+          <span>Next number (1 to 150, reused)</span>
+          <b id="genNum">1</b>
+          <button class="btn red" id="genBtn">Give this token</button>
+          <button class="link" id="genReset">Restart numbering at 1</button>
+        </div>
       </div>
       <div class="panel">
         <h2 id="prepH" style="margin:0 0 4px;font-size:18px">Preparing</h2>
@@ -35,7 +43,10 @@
         <div class="tiles" id="tiles"></div>
         <button class="link" id="moreP" hidden></button>
         <div id="offWrap" hidden>
-          <div class="rhead"><h2 id="readyH" style="margin:0;font-size:18px">Ready on the board</h2><button class="link" id="clearReady" style="padding:0">Clear all</button></div>
+          <div class="rhead">
+            <h2 id="readyH" style="margin:0;font-size:18px">Ready on the board</h2>
+            <button class="link" id="clearReady" style="padding:0">Clear all</button>
+          </div>
           <p class="hint" style="margin:4px 0 12px">Tap a token when it has been handed over.</p>
           <div class="tiles" id="offTiles"></div>
           <button class="link" id="moreR" hidden></button>
