@@ -70,12 +70,34 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Job-level `if` cannot use `secrets` when `needs` is set; probe via env + output.
+  signing-gate:
+    name: Check Apple signing secrets
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.probe.outputs.ready }}
+    steps:
+      - name: Probe secrets
+        id: probe
+        env:
+          CERT: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
+          CERT_PASS: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          TEAM: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          if [ -n "$CERT" ] && [ -n "$CERT_PASS" ] && [ -n "$PROFILE" ] && [ -n "$TEAM" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Apple signing secrets are present; device IPA job will run."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Device IPA skipped::Apple signing secrets are not set. Simulator build still runs. To produce a device-installable IPA, add repo secrets documented in README (IOS_BUILD_CERTIFICATE_BASE64, IOS_BUILD_CERTIFICATE_PASSWORD, IOS_PROVISIONING_PROFILE_BASE64, IOS_TEAM_ID)."
+          fi
+
   device-ipa:
     name: Device IPA (signed)
     runs-on: macos-latest
-    needs: simulator
-    # Only when Apple signing secrets are configured. Empty secrets skip this job.
-    if: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 != '' && secrets.IOS_BUILD_CERTIFICATE_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' && secrets.IOS_TEAM_ID != '' }}
+    needs: [simulator, signing-gate]
+    if: needs.signing-gate.outputs.ready == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,9 +123,12 @@ jobs:
           IOS_BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
           IOS_BUILD_CERTIFICATE_PASSWORD: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD || 'temp-ci-keychain' }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
+          if [ -z "${KEYCHAIN_PASSWORD}" ]; then
+            KEYCHAIN_PASSWORD="temp-ci-keychain"
+          fi
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -141,22 +166,26 @@ jobs:
             DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID"
 
-          cat > build/ExportOptions.plist << PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
+          python3 - <<'PY'
+          import os
+          team = os.environ["IOS_TEAM_ID"]
+          plist = f"""<?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key>
             <string>ad-hoc</string>
             <key>teamID</key>
-            <string>${IOS_TEAM_ID}</string>
+            <string>{team}</string>
             <key>signingStyle</key>
             <string>manual</string>
             <key>compileBitcode</key>
             <false/>
           </dict>
           </plist>
-          PLIST
+          """
+          open("build/ExportOptions.plist", "w").write(plist)
+          PY
 
           xcodebuild -exportArchive \
             -archivePath build/App.xcarchive \
@@ -174,13 +203,3 @@ jobs:
           path: artifacts/OrderBoard.ipa
           if-no-files-found: error
           retention-days: 14
-
-  device-ipa-notice:
-    name: Device IPA notice
-    runs-on: ubuntu-latest
-    needs: simulator
-    if: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 == '' || secrets.IOS_BUILD_CERTIFICATE_PASSWORD == '' || secrets.IOS_PROVISIONING_PROFILE_BASE64 == '' || secrets.IOS_TEAM_ID == '' }}
-    steps:
-      - name: Signing secrets not configured
-        run: |
-          echo "::notice title=Device IPA skipped::Apple signing secrets are not set. Simulator build still ran. To produce a device-installable IPA, add repo secrets documented in README (IOS_BUILD_CERTIFICATE_BASE64, IOS_BUILD_CERTIFICATE_PASSWORD, IOS_PROVISIONING_PROFILE_BASE64, IOS_TEAM_ID)."
