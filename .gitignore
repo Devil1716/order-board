@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# OS / editors
+.DS_Store
+*.iml
+.idea/
+.vscode/
+*.swp
+*~
+
+# Android build
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+android/.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Keep dist folder, ignore binaries inside
+dist/*
+!dist/.gitkeep
+
+# iOS / Xcode / CocoaPods (Pods installed in CI)
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/build/
+ios/App/output/
+ios/App/App/public/
+ios/DerivedData/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Capacitor generated (recreated by `npx cap sync`)
+ios/capacitor-cordova-ios-plugins/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+
+# Local / scratch
+www/_prototype.html
+test-shots/
+*.log
+.env
+.env.*
+!.env.example
