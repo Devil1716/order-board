@@ -7,6 +7,14 @@
 
   var $ = function (i) { return document.getElementById(i); };
 
+  function paintThemeBtn(mode) {
+    var b = $('themeBtn');
+    if (!b) return;
+    b.textContent = mode === 'dark' ? 'Dark' : 'Light';
+    b.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
+  }
+
+
   function chime() {
     if (!snd) return;
     try {
@@ -173,6 +181,21 @@
       this.textContent = snd ? 'Sound on' : 'Sound off';
       if (snd) chime();
     };
+
+    if ($('themeBtn')) {
+      $('themeBtn').onclick = async function () {
+        var mode = window.OBNative ? await OBNative.toggleTheme() : (function () {
+          var cur = document.documentElement.getAttribute('data-theme') ||
+            (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          var next = cur === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          try { localStorage.setItem('ob-theme', next); } catch (e) {}
+          return next;
+        })();
+        paintThemeBtn(mode);
+      };
+    }
+
     $('alertsBtn').onclick = function () {
       alertsOn = true;
       snd = true;
@@ -198,6 +221,15 @@
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
     wireUi();
+
+    if (window.OBNative) {
+      var mode = await OBNative.initTheme();
+      paintThemeBtn(mode);
+    } else {
+      var saved = null;
+      try { saved = localStorage.getItem('ob-theme'); } catch (e) {}
+      paintThemeBtn(saved === 'dark' || (!saved && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    }
     mineCache = await OBStore.getMine();
     OBStore.onChange(function () { render(); });
     await OBStore.init();
