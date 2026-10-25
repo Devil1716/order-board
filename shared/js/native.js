@@ -98,6 +98,68 @@
     try { localStorage.removeItem(key); } catch (e) {}
   }
 
+
+  var THEME_KEY = 'ob-theme';
+
+  function systemTheme() {
+    try {
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch (e) { return 'light'; }
+  }
+
+  function applyThemeAttr(theme) {
+    var root = document.documentElement;
+    if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
+    else root.removeAttribute('data-theme');
+    try {
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', '#e60023');
+    } catch (e) {}
+  }
+
+  function resolvedTheme(saved) {
+    if (saved === 'light' || saved === 'dark') return saved;
+    return systemTheme();
+  }
+
+  async function getSavedTheme() {
+    var t = await prefsGet(THEME_KEY);
+    if (t === 'light' || t === 'dark') return t;
+    try {
+      t = localStorage.getItem(THEME_KEY);
+      if (t === 'light' || t === 'dark') return t;
+    } catch (e) {}
+    return null;
+  }
+
+  async function setSavedTheme(theme) {
+    if (theme === 'light' || theme === 'dark') {
+      await prefsSet(THEME_KEY, theme);
+      try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+    } else {
+      await prefsRemove(THEME_KEY);
+      try { localStorage.removeItem(THEME_KEY); } catch (e) {}
+    }
+  }
+
+  async function initTheme() {
+    var saved = await getSavedTheme();
+    applyThemeAttr(saved);
+    // Keep localStorage in sync for FOUC script on next load
+    if (saved === 'light' || saved === 'dark') {
+      try { localStorage.setItem(THEME_KEY, saved); } catch (e) {}
+    }
+    return resolvedTheme(saved);
+  }
+
+  async function toggleTheme() {
+    var cur = resolvedTheme(await getSavedTheme());
+    var next = cur === 'dark' ? 'light' : 'dark';
+    await setSavedTheme(next);
+    applyThemeAttr(next);
+    return next;
+  }
+
   async function setupChrome() {
     if (!isNative) return;
     document.body.classList.add('native');
@@ -120,6 +182,9 @@
     prefsGet: prefsGet,
     prefsSet: prefsSet,
     prefsRemove: prefsRemove,
-    setupChrome: setupChrome
+    setupChrome: setupChrome,
+    initTheme: initTheme,
+    toggleTheme: toggleTheme,
+    resolvedTheme: function () { return resolvedTheme(document.documentElement.getAttribute('data-theme')); }
   };
 })(window);
