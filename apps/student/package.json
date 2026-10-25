@@ -1,0 +1,26 @@
+{
+  "name": "order-board-student",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Order Board \u2014 student / customer display",
+  "scripts": {
+    "sync": "node ../../scripts/sync-shared.js && npx cap sync",
+    "apk": "cd android && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../../../dist/OrderBoard-student-debug.apk"
+  },
+  "dependencies": {
+    "@capacitor-community/keep-awake": "^5.0.1",
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/haptics": "^6.0.2",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/local-notifications": "^6.1.1",
+    "@capacitor/preferences": "^6.0.3",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2",
+    "firebase": "^10.14.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

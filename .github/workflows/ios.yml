@@ -11,8 +11,16 @@ concurrency:
 
 jobs:
   simulator:
-    name: Simulator build
+    name: Simulator (${{ matrix.app }})
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: student
+            artifact: OrderBoard-student-ios-simulator
+          - app: staff
+            artifact: OrderBoard-staff-ios-simulator
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,15 +34,24 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Link workspace node_modules for Capacitor Gradle/iOS paths
+        run: |
+          ln -sfn ../../node_modules apps/student/node_modules
+          ln -sfn ../../node_modules apps/staff/node_modules
+
+      - name: Sync shared web assets
+        run: npm run sync-shared
+
       - name: Sync Capacitor iOS
+        working-directory: apps/${{ matrix.app }}
         run: npx cap sync ios
 
       - name: Install CocoaPods
-        working-directory: ios/App
+        working-directory: apps/${{ matrix.app }}/ios/App
         run: pod install
 
       - name: Build for iOS Simulator
-        working-directory: ios/App
+        working-directory: apps/${{ matrix.app }}/ios/App
         run: |
           set -euo pipefail
           xcodebuild \
@@ -48,7 +65,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Package .app artifact
-        working-directory: ios/App
+        working-directory: apps/${{ matrix.app }}/ios/App
         run: |
           set -euo pipefail
           APP_PATH=$(find build/Build/Products -type d -name 'App.app' | head -n 1)
@@ -58,19 +75,18 @@ jobs:
             exit 1
           fi
           echo "Found: $APP_PATH"
-          mkdir -p ../../artifacts
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" ../../artifacts/OrderBoard-ios-simulator.zip
-          ls -lh ../../artifacts/
+          mkdir -p ../../../../artifacts
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" ../../../../artifacts/${{ matrix.artifact }}.zip
+          ls -lh ../../../../artifacts/
 
       - name: Upload simulator artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OrderBoard-ios-simulator
-          path: artifacts/OrderBoard-ios-simulator.zip
+          name: ${{ matrix.artifact }}
+          path: artifacts/${{ matrix.artifact }}.zip
           if-no-files-found: error
           retention-days: 14
 
-  # Job-level `if` cannot use `secrets` when `needs` is set; probe via env + output.
   signing-gate:
     name: Check Apple signing secrets
     runs-on: ubuntu-latest
@@ -87,119 +103,18 @@ jobs:
         run: |
           if [ -n "$CERT" ] && [ -n "$CERT_PASS" ] && [ -n "$PROFILE" ] && [ -n "$TEAM" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "Apple signing secrets are present; device IPA job will run."
+            echo "Apple signing secrets are present."
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Device IPA skipped::Apple signing secrets are not set. Simulator build still runs. To produce a device-installable IPA, add repo secrets documented in README (IOS_BUILD_CERTIFICATE_BASE64, IOS_BUILD_CERTIFICATE_PASSWORD, IOS_PROVISIONING_PROFILE_BASE64, IOS_TEAM_ID)."
+            echo "::notice title=Device IPA skipped::Apple signing secrets are not set. Simulator builds for Student + Staff still run. See README."
           fi
 
-  device-ipa:
-    name: Device IPA (signed)
-    runs-on: macos-latest
+  device-ipa-notice:
+    name: Device IPA (needs certs per app)
+    runs-on: ubuntu-latest
     needs: [simulator, signing-gate]
     if: needs.signing-gate.outputs.ready == 'true'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Sync Capacitor iOS
-        run: npx cap sync ios
-
-      - name: Install CocoaPods
-        working-directory: ios/App
-        run: pod install
-
-      - name: Import signing certificate and profile
-        env:
-          IOS_BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
-          IOS_BUILD_CERTIFICATE_PASSWORD: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
-          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+      - name: Notice
         run: |
-          set -euo pipefail
-          if [ -z "${KEYCHAIN_PASSWORD}" ]; then
-            KEYCHAIN_PASSWORD="temp-ci-keychain"
-          fi
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-          echo -n "$IOS_BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
-          echo -n "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" -P "$IOS_BUILD_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
-          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
-
-      - name: Archive and export IPA
-        env:
-          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-        working-directory: ios/App
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            -archivePath build/App.xcarchive \
-            clean archive \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID"
-
-          python3 - <<'PY'
-          import os
-          team = os.environ["IOS_TEAM_ID"]
-          plist = f"""<?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>ad-hoc</string>
-            <key>teamID</key>
-            <string>{team}</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>compileBitcode</key>
-            <false/>
-          </dict>
-          </plist>
-          """
-          open("build/ExportOptions.plist", "w").write(plist)
-          PY
-
-          xcodebuild -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportOptionsPlist build/ExportOptions.plist \
-            -exportPath build/ipa
-
-          mkdir -p ../../artifacts
-          cp build/ipa/*.ipa ../../artifacts/OrderBoard.ipa
-          ls -lh ../../artifacts/
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: OrderBoard-ios-device-ipa
-          path: artifacts/OrderBoard.ipa
-          if-no-files-found: error
-          retention-days: 14
+          echo "::notice title=Device IPA::Signing secrets exist, but this monorepo needs separate provisioning profiles for in.sharan.orderboard and in.sharan.orderboard.staff. Extend the workflow once both profiles are available."

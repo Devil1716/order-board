@@ -1,28 +1,19 @@
 {
   "name": "order-board",
   "version": "1.0.0",
-  "description": "Order Board — restaurant/cafe token display for iOS and Android",
   "private": true,
+  "description": "Order Board monorepo \u2014 Student + Staff Capacitor apps",
+  "workspaces": [
+    "apps/student",
+    "apps/staff"
+  ],
   "scripts": {
-    "start": "npx --yes serve www -p 5173",
-    "build": "node scripts/sync-web.js",
-    "sync": "npx cap sync",
-    "android": "npx cap open android",
-    "ios": "npx cap open ios",
-    "apk": "cd android && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../dist/OrderBoard-debug.apk"
-  },
-  "dependencies": {
-    "@capacitor-community/keep-awake": "^5.0.1",
-    "@capacitor/android": "^6.2.0",
-    "@capacitor/app": "^6.0.2",
-    "@capacitor/core": "^6.2.0",
-    "@capacitor/haptics": "^6.0.2",
-    "@capacitor/ios": "^6.2.0",
-    "@capacitor/local-notifications": "^6.1.1",
-    "@capacitor/preferences": "^6.0.3",
-    "@capacitor/splash-screen": "^6.0.3",
-    "@capacitor/status-bar": "^6.0.2",
-    "firebase": "^10.14.1"
+    "sync-shared": "node scripts/sync-shared.js",
+    "sync": "npm run sync-shared && npm run sync --workspace=order-board-student && npm run sync --workspace=order-board-staff",
+    "apk:student": "npm run sync-shared && npm run apk --workspace=order-board-student",
+    "apk:staff": "npm run sync-shared && npm run apk --workspace=order-board-staff",
+    "apk": "npm run apk:student && npm run apk:staff",
+    "postinstall": "ln -sfn ../../node_modules apps/student/node_modules; ln -sfn ../../node_modules apps/staff/node_modules"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.0"

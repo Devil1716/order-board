@@ -1,145 +1,26 @@
 # Order Board
 
-Cross-platform restaurant / cafe **token board** for customers and staff.
+Two separate Capacitor apps for a restaurant / cafe **token board**:
 
-- **Display** — customers enter their token, see preparing + ready boards, and get a full-screen alert (sound + haptics) when their order is ready.
-- **Staff** — numpad to add tokens, mark ready, hand over; sequential tokens 1–150 (reuse); clear-all with undo toast.
+| App | Package / Bundle ID | Who uses it |
+|---|---|---|
+| **Order Board** (Student) | `in.sharan.orderboard` | Students / customers — enter token, watch the board, get ready alert |
+| **Order Board Staff** | `in.sharan.orderboard.staff` | Counter staff — give tokens, mark ready, hand over |
 
-Built with **Capacitor 6** + plain HTML/CSS/JS so the UI matches the original prototype.
+Same design language as the original HTML prototype. **No Display/Staff tabs** — each role is its own installable app.
 
-| | |
-|---|---|
-| App ID / package | `in.sharan.orderboard` |
-| Platforms | Android, iOS, web |
-| Sync | Local-first; optional Firebase Firestore |
-| Repo | https://github.com/Devil1716/order-board |
+Repo: https://github.com/Devil1716/order-board
 
-## Quick start (web)
+## Sync across phones (required for two devices)
 
-```bash
-cd order-board
-npm install
-npm start          # serves www/ on http://localhost:5173
-```
+Student and Staff only share a board when **Firebase Firestore** is configured. Without it, each app keeps a **local-only** store (fine for a single tablet demo; not for phone + counter).
 
-Open the URL on a phone or desktop browser. Staff and Display tabs share the same local store on that device.
-
-## Android APK
-
-Rebuild locally (needs JDK 21 + Android SDK):
-
-```bash
-export JAVA_HOME=/path/to/jdk21
-export ANDROID_HOME=/path/to/android-sdk
-npm run sync
-npm run apk
-# → dist/OrderBoard-debug.apk
-adb install -r dist/OrderBoard-debug.apk
-```
-
-Or copy the APK to the phone and open it (enable “Install unknown apps” for your file manager).
-
-## iOS CI (GitHub Actions)
-
-This repo builds **iOS on macOS runners** so you do not need a local Mac for a compile check.
-
-Workflow: [`.github/workflows/ios.yml`](.github/workflows/ios.yml)
-
-| Trigger | What runs |
-|---|---|
-| Push to `main` | Simulator Debug build (no Apple signing) |
-| `workflow_dispatch` | Same |
-| Device IPA job | Only if Apple signing **secrets** are set (otherwise skipped with a notice) |
-
-### Download the simulator artifact
-
-1. Open **Actions** → latest **iOS** run → **Artifacts**.
-2. Download **`OrderBoard-ios-simulator`** (zip of `App.app`).
-3. That proves the iOS project **compiles**. It is for the **Simulator**, not for installing on a physical iPhone.
-
-```bash
-# After downloading the zip from Actions:
-unzip OrderBoard-ios-simulator.zip
-# On a Mac with Xcode:
-xcrun simctl boot "iPhone 16"   # or any available simulator
-xcrun simctl install booted App.app
-xcrun simctl launch booted in.sharan.orderboard
-```
-
-### What a real device IPA still needs
-
-A device-installable IPA requires an **Apple Developer Program** membership and signing material stored as **GitHub Actions secrets** (never commit certs to git):
-
-| Secret | Contents |
-|---|---|
-| `IOS_BUILD_CERTIFICATE_BASE64` | Distribution (or Ad Hoc) `.p12` certificate, base64-encoded |
-| `IOS_BUILD_CERTIFICATE_PASSWORD` | Password for that `.p12` |
-| `IOS_PROVISIONING_PROFILE_BASE64` | Matching `.mobileprovision`, base64-encoded |
-| `IOS_TEAM_ID` | 10-character Apple Team ID |
-| `IOS_KEYCHAIN_PASSWORD` | Optional; temporary CI keychain password |
-
-Encode files on a Mac:
-
-```bash
-base64 -i YourCert.p12 | pbcopy          # → IOS_BUILD_CERTIFICATE_BASE64
-base64 -i YourProfile.mobileprovision | pbcopy  # → IOS_PROVISIONING_PROFILE_BASE64
-```
-
-Add them under **Settings → Secrets and variables → Actions**. When all four required secrets are present, the **Device IPA** job runs and uploads artifact **`OrderBoard-ios-device-ipa`**.
-
-Without those secrets, CI still produces the simulator build; the device job is skipped on purpose.
-
-### Local Mac + Xcode (optional)
-
-```bash
-npm install
-npx cap sync ios
-cd ios/App
-pod install
-open App.xcworkspace
-```
-
-In Xcode: select a simulator or device, set your Team under Signing & Capabilities, then Run. Bundle ID is `in.sharan.orderboard`.
-
-## Project layout
-
-```
-order-board/
-  www/                 # web assets (Capacitor webDir)
-    index.html
-    css/styles.css
-    js/
-      app.js           # UI + modes
-      store.js         # local + optional Firestore
-      native.js        # Capacitor plugins bridge
-      firebase-config.js
-  android/             # Capacitor Android project
-  ios/                 # Capacitor iOS project (built in CI on macOS)
-  .github/workflows/   # iOS simulator (+ optional signed IPA)
-  dist/                # local APK output (binaries gitignored)
-  capacitor.config.json
-```
-
-## Behaviour (preserved from prototype)
-
-- Ready tokens expire after **20 minutes** on the board.
-- Orders older than **4 hours** are ignored.
-- Sequential give: next free number in **1–150**, wraps / reuses.
-- Sound toggle; full-screen mode; wake lock when “Alert me” is on.
-- Toast + Undo for ready / hand-over / clear-all.
-- Theme follows system light/dark (CSS `prefers-color-scheme`).
-
-## Optional Firebase sync
-
-By default the app is **local-only** (SharedPreferences / localStorage). Staff + Display on the same device stay in sync.
-
-To sync across phones/tablets:
-
-1. Create a Firebase project and a **web app**.
-2. Enable **Cloud Firestore** (start in test mode or add rules that allow read/write on `orders`).
-3. Edit `www/js/firebase-config.js`:
+1. Create a Firebase project → add a **Web** app.
+2. Enable **Cloud Firestore** (test mode or rules allowing read/write on `orders`).
+3. Paste the web config into **both** apps via the shared file:
 
 ```js
+// shared/js/firebase-config.js  (copied into each app’s www on sync)
 window.ORDER_BOARD_FIREBASE = {
   apiKey: "...",
   authDomain: "....firebaseapp.com",
@@ -150,27 +31,120 @@ window.ORDER_BOARD_FIREBASE = {
 };
 ```
 
-4. Re-sync natives: `npx cap sync`
+4. Run `npm run sync-shared && npx cap sync` in each app (or `npm run sync` from the repo root).
 
-Firestore collection: `orders`  
+Collection: `orders`  
 Document ID: token number as string (`"42"`)  
 Fields: `{ t: createdMs, r: readyMs|0, c: collectedMs|0 }`
 
-## Capacitor plugins used
+Until config is set, the UI sync label says local-only and reminds you that two phones need Firebase.
 
-- `@capacitor/haptics` — ready buzz
-- `@capacitor/local-notifications` — alert when backgrounded
-- `@capacitor/preferences` — mine-token / next-number
-- `@capacitor/status-bar`, `@capacitor/splash-screen`
-- `@capacitor-community/keep-awake` — screen on while alerts enabled
+## Project layout
+
+```
+order-board/
+  shared/                 # CSS, store, native bridge, firebase-config, vendor
+  apps/student/           # Capacitor app — display / track only
+    www/                  # index + student app.js (+ synced shared)
+    android/ ios/
+  apps/staff/             # Capacitor app — staff controls only
+    www/ android/ ios/
+  scripts/sync-shared.js  # copies shared → each www/
+  dist/                   # local APK output (gitignored binaries)
+  .github/workflows/ios.yml
+```
+
+## Android APKs
+
+Needs JDK 21 + Android SDK.
+
+```bash
+export JAVA_HOME=/path/to/jdk21
+export ANDROID_HOME=/path/to/android-sdk
+npm install
+# workspaces hoist node_modules; Gradle expects apps/*/node_modules:
+ln -sfn ../../node_modules apps/student/node_modules
+ln -sfn ../../node_modules apps/staff/node_modules
+npm run apk
+# → dist/OrderBoard-student-debug.apk
+# → dist/OrderBoard-staff-debug.apk
+```
+
+Or build one:
+
+```bash
+npm run apk:student
+npm run apk:staff
+```
+
+Install both on a phone (different package names coexist). Enable “Install unknown apps” for your file manager.
+
+## iOS CI (GitHub Actions)
+
+Workflow [`.github/workflows/ios.yml`](.github/workflows/ios.yml) builds **both** apps on `macos-latest`:
+
+| Job | Artifact |
+|---|---|
+| Student simulator | `OrderBoard-student-ios-simulator` |
+| Staff simulator | `OrderBoard-staff-ios-simulator` |
+| Device IPA (optional) | Skipped until Apple signing secrets are set |
+
+Triggers: push to `main`, `workflow_dispatch`.
+
+Simulator builds need **no** Apple certs. A device IPA still needs:
+
+| Secret | Contents |
+|---|---|
+| `IOS_BUILD_CERTIFICATE_BASE64` | Distribution / Ad Hoc `.p12`, base64 |
+| `IOS_BUILD_CERTIFICATE_PASSWORD` | Password for that `.p12` |
+| `IOS_PROVISIONING_PROFILE_BASE64` | Matching `.mobileprovision`, base64 |
+| `IOS_TEAM_ID` | 10-character Apple Team ID |
+| `IOS_KEYCHAIN_PASSWORD` | Optional temporary CI keychain password |
+
+You will need **two** provisioning profiles (one per bundle ID) for device builds of both apps; the current device job is a template — extend it once certs exist.
+
+### Local Mac + Xcode
+
+```bash
+npm install
+ln -sfn ../../node_modules apps/student/node_modules
+ln -sfn ../../node_modules apps/staff/node_modules
+npm run sync-shared
+cd apps/student && npx cap sync ios && cd ios/App && pod install && open App.xcworkspace
+# similarly apps/staff
+```
+
+## Behaviour
+
+**Student**
+
+- Enter token → track preparing / ready
+- Hero latest ready + ready grid + preparing bar
+- Full-screen ready alert, sound, haptics, local notification
+- Collect / track another
+- No staff numpad or give-token UI
+
+**Staff**
+
+- Numpad add / ready / hand over
+- Give next token 1–150 (reuse)
+- Preparing + ready tiles, clear all, toast + undo
+- No student token-entry / personal alert flow
+
+Shared rules: ready expires after **20 minutes**; orders older than **4 hours** ignored; theme follows system light/dark.
+
+## Capacitor plugins
+
+- `@capacitor/haptics`, `@capacitor/local-notifications`
+- `@capacitor/preferences`, `@capacitor/status-bar`, `@capacitor/splash-screen`
+- `@capacitor-community/keep-awake` (student alerts)
 
 ## Known limits (v1)
 
-- Staff tab is always visible (no PIN). Add a long-press / PIN gate later if needed.
-- Firebase is optional; without config, sync label shows “Local only”.
-- Device IPA needs Apple Developer signing secrets (see above); simulator CI needs none.
-- Debug APK is unsigned for Play; use a release keystore for store distribution.
-- Google Fonts (Bricolage Grotesque) needs network on first load; system UI font is the fallback.
+- Firebase config ships as `null` — paste your project keys before using two devices.
+- Staff app has no PIN gate yet.
+- Debug APKs are for sideload, not Play Store.
+- Google Fonts need network on first load; system UI font is the fallback.
 
 ## License
 
