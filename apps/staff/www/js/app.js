@@ -102,7 +102,7 @@
     $('prepH').textContent = 'Preparing (' + P.length + ')';
     $('prepHint').textContent = q
       ? 'Showing tokens with “' + q + '”.'
-      : 'Tap a token when its order is ready. The red tile is the oldest.';
+      : 'Tap a token when its order is ready. The red one is the oldest.';
     var tl = $('tiles'); tl.innerHTML = '';
     if (!PP.length) {
       tl.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">' +
