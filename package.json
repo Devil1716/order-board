@@ -2,7 +2,7 @@
   "name": "order-board",
   "version": "1.0.0",
   "private": true,
-  "description": "Order Board monorepo \u2014 Student + Staff Capacitor apps",
+  "description": "Cue monorepo (order-board) \u2014 Student + Staff Capacitor apps",
   "workspaces": [
     "apps/student",
     "apps/staff"

@@ -48,6 +48,11 @@
     write(n, { r: Date.now() });
     toast('Token ' + n + ' is ready', function () { write(n, { r: 0 }); });
     chime();
+    try {
+      var H = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Haptics;
+      if (H && H.impact) H.impact({ style: 'Medium' });
+      else if (navigator.vibrate) navigator.vibrate(35);
+    } catch (e) {}
   }
 
   function handOver(n) {
@@ -84,7 +89,7 @@
 
   function drawEntry() {
     var e = $('entry');
-    e.textContent = typed || 'Type a token number';
+    e.textContent = typed || 'Type a token';
     e.className = 'entry' + (typed ? '' : ' ph');
     var n = parseInt(typed, 10), m = n ? modeOf(n) : 'none', mb = $('mainBtn');
     mb.disabled = !n;
@@ -94,12 +99,12 @@
     $('genNum').textContent = nn || 'Full';
     $('genBtn').disabled = !nn;
     $('keyHint').textContent = !n
-      ? 'Type a number. The big button shows what it will do.'
+      ? 'The red button changes based on the number.'
       : m === 'prep'
-        ? 'This order is being prepared. Tap Ready when it is done.'
+        ? 'In the kitchen — tap Ready when it’s done.'
         : m === 'ready'
-          ? 'This order is on the board. Tap Hand over to remove it.'
-          : 'This token isn’t on the board yet. Tap Add to put it there.';
+          ? 'Waiting for pickup — tap Hand over when given.'
+          : 'Not in the queue yet — tap Add.';
   }
 
   function render() {
@@ -107,16 +112,17 @@
     var q = typed, LIM = 8;
     function mt(h) { return !q || String(h.n).indexOf(q) >= 0; }
     var PP = P.filter(mt), RR = R.filter(mt);
-    $('prepH').textContent = 'Preparing (' + P.length + ')';
+    $('prepH').textContent = P.length ? ('Up next · ' + P.length) : 'Up next';
     $('prepHint').textContent = q
-      ? 'Showing tokens with “' + q + '”.'
-      : 'Tap a token when its order is ready. The red one is the oldest.';
+      ? 'Filtered to “' + q + '”.'
+      : (P.length ? 'Red tile is oldest — tap it when ready.' : 'Quiet for now.');
     var tl = $('tiles'); tl.innerHTML = '';
     if (!PP.length) {
       tl.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">' +
-        (q ? 'No preparing token matches ' + q + '.' : 'No orders preparing. New orders appear here.') +
+        (q ? 'No match for ' + q + '.' : 'No orders preparing.') +
         '</p>';
     }
+    var now = Date.now();
     (q || showAllP ? PP : PP.slice(0, LIM)).forEach(function (h) {
       var d = document.createElement('div');
       d.className = 'tile' + (h === P[0] ? ' first' : '');
@@ -124,18 +130,22 @@
       b.className = 'tnum'; b.textContent = h.n;
       b.setAttribute('aria-label', 'Token ' + h.n + ' is ready');
       b.onclick = function () { callReady(h.n); };
+      var ageMin = Math.floor((now - h.t) / 60000);
+      var ageEl = document.createElement('span');
+      ageEl.className = 'tage';
+      ageEl.textContent = ageMin < 1 ? '<1m' : ageMin + 'm';
       var x = document.createElement('button');
       x.className = 'tx'; x.textContent = 'Cancel order';
       x.setAttribute('aria-label', 'Cancel order for token ' + h.n);
       x.onclick = function () { handOver(h.n); };
-      d.appendChild(b); d.appendChild(x); tl.appendChild(d);
+      d.appendChild(b); d.appendChild(ageEl); d.appendChild(x); tl.appendChild(d);
     });
     var mp = $('moreP');
     mp.hidden = !!q || PP.length <= LIM;
-    mp.textContent = showAllP ? 'Show fewer' : 'Show all ' + PP.length + ' preparing';
+    mp.textContent = showAllP ? 'Show fewer' : 'Show all ' + PP.length;
 
     $('offWrap').hidden = !R.length;
-    $('readyH').textContent = 'Ready on the board (' + R.length + ')';
+    $('readyH').textContent = R.length ? ('Ready — tap when handed over · ' + R.length) : 'Ready — tap when handed over';
     var ot = $('offTiles'); ot.innerHTML = '';
     (q || showAllR ? RR : RR.slice(0, LIM)).forEach(function (h) {
       var b = document.createElement('button');
@@ -146,7 +156,19 @@
     });
     var mr = $('moreR');
     mr.hidden = !!q || RR.length <= LIM;
-    mr.textContent = showAllR ? 'Show fewer' : 'Show all ' + RR.length + ' ready';
+    mr.textContent = showAllR ? 'Show fewer' : 'Show all ' + RR.length;
+
+    var qo = $('quickOldest');
+    if (qo) {
+      if (P.length && !typed) {
+        var ageMin0 = Math.floor((Date.now() - P[0].t) / 60000);
+        var ageLbl = ageMin0 < 1 ? '<1m' : ageMin0 + 'm';
+        qo.hidden = false;
+        qo.textContent = 'Mark ' + P[0].n + ' ready · ' + ageLbl;
+      } else {
+        qo.hidden = true;
+      }
+    }
 
     drawEntry();
     $('sync').textContent = OBStore.getSyncLabel();
@@ -192,6 +214,12 @@
 
   function wireUi() {
     $('mainBtn').onclick = act;
+    if ($('quickOldest')) {
+      $('quickOldest').onclick = function () {
+        var P = view().prep;
+        if (P.length) callReady(P[0].n);
+      };
+    }
     $('genBtn').onclick = async function () {
       var n = nextNumSync();
       if (!n) { toast('All ' + POOL + ' tokens are in use'); return; }

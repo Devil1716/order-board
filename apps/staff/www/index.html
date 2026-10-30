@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#e60023">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Order Board Staff</title>
+<title>Cue Staff</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="logo"><span class="dot">#</span>Order Board Staff</div>
+  <div class="logo"><img class="logo-mark" src="img/logo.png" width="36" height="36" alt="">Cue Staff</div>
   <div class="acts">
     <button class="ib" id="themeBtn" type="button" aria-label="Toggle color theme">Light</button>
     <button class="ib" id="snd" aria-pressed="false">Sound off</button>
@@ -25,24 +25,25 @@
   <section id="v-admin">
     <div class="staff">
       <div class="panel">
-        <div class="entry ph" id="entry">Type a token number</div>
+        <div class="entry ph" id="entry">Type a token</div>
         <div class="keys" id="keys"></div>
         <div class="btnrow"><button class="btn red" id="mainBtn" disabled>Add token</button><button class="btn" id="handRem" hidden>Cancel order</button></div>
+        <button class="btn red big quick-oldest" id="quickOldest" type="button" hidden>Mark ready</button>
         <p class="hint" id="keyHint"></p>
-        <div class="gen"><span>Next number (1 to 150, reused)</span><b id="genNum">1</b><button class="btn red" id="genBtn">Give this token</button><button class="link" id="genReset">Restart numbering at 1</button></div>
+        <div class="gen"><span>Next number</span><b id="genNum">1</b><button class="btn red" id="genBtn">Give this token</button><button class="link" id="genReset">Restart at 1</button></div>
       </div>
       <div class="panel">
-        <h2 id="prepH" style="margin:0 0 4px;font-size:18px">Preparing</h2>
-        <p class="hint" id="prepHint" style="margin:0 0 14px"></p>
+        <h2 class="sec-plain" id="prepH">Up next</h2>
+        <p class="hint sec-hint" id="prepHint">Oldest is highlighted — tap when ready.</p>
         <div class="tiles" id="tiles"></div>
         <button class="link" id="moreP" hidden></button>
         <div id="offWrap" hidden>
-          <div class="rhead"><h2 id="readyH" style="margin:0;font-size:18px">Ready on the board</h2><button class="link" id="clearReady" style="padding:0">Clear all</button></div>
-          <p class="hint" style="margin:4px 0 12px">Tap a token when it has been handed over.</p>
+          <div class="rhead"><h2 class="sec-plain" id="readyH">Ready — tap when handed over</h2><button class="link" id="clearReady">Clear all</button></div>
+          <p class="hint sec-hint">Removes it from the student view.</p>
           <div class="tiles" id="offTiles"></div>
           <button class="link" id="moreR" hidden></button>
         </div>
-        <p class="hint" id="sync"></p>
+        <p class="hint sync-foot" id="sync"></p>
       </div>
     </div>
   </section>

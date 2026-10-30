@@ -1,11 +1,11 @@
-# Order Board
+# Cue
 
 Two separate Capacitor apps for a restaurant / cafe **token board**:
 
 | App | Package / Bundle ID | Who uses it |
 |---|---|---|
-| **Order Board** (Student) | `in.sharan.orderboard` | Students / customers — enter token, watch the board, get ready alert |
-| **Order Board Staff** | `in.sharan.orderboard.staff` | Counter staff — give tokens, mark ready, hand over |
+| **Cue** (Student) | `in.sharan.orderboard` | Students / customers — enter token, watch the board, get ready alert |
+| **Cue Staff** | `in.sharan.orderboard.staff` | Counter staff — give tokens, mark ready, hand over |
 
 Same design language as the original HTML prototype. **No Display/Staff tabs** — each role is its own installable app.
 

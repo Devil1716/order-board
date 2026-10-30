@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#e60023">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Order Board</title>
+<title>Cue</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="logo"><span class="dot">#</span>Order Board</div>
+  <div class="logo"><img class="logo-mark" src="img/logo.png" width="36" height="36" alt="">Cue</div>
   <div class="acts">
     <button class="ib" id="themeBtn" type="button" aria-label="Toggle color theme">Light</button>
     <button class="ib" id="snd" aria-pressed="false">Sound off</button>
@@ -23,28 +23,33 @@
 </header>
 <main>
   <section id="v-cust">
-    <div class="mine" id="mine">
-      <div id="noTok">
-        <p class="status" style="margin-top:0">Enter your token</p>
-        <p class="sub">Type the number you were given and we will alert you when it’s ready.</p>
-        <input class="tokin" id="tokIn" type="text" inputmode="numeric" maxlength="4" placeholder="000" aria-label="Your token number" autocomplete="off"><br>
-        <button class="btn red" id="getTok">Track my order</button>
-      </div>
-      <div id="hasTok" hidden>
-        <div class="sub" style="margin:0 0 4px">Your token</div>
-        <div class="mytok" id="myNum">0</div>
-        <p class="status" id="mStatus"></p>
-        <p class="sub" id="mSub"></p>
-        <button class="btn red" id="alertsBtn" hidden>Alert me when it’s ready</button>
-        <button class="btn red" id="collBtn" hidden>I’ve collected my order</button>
-        <button class="btn" id="againBtn" hidden>Order again</button>
+    <!-- Empty: one focused job — enter token -->
+    <div class="focus-empty" id="focusEmpty">
+      <h1 class="focus-title">Enter your token</h1>
+      <p class="focus-why">We’ll tell you when your food is ready.</p>
+      <input class="tokin" id="tokInEmpty" type="text" inputmode="numeric" maxlength="4" placeholder="000" aria-label="Your token number" autocomplete="off"><br>
+      <button class="btn red" id="getTokEmpty">Track my order</button>
+    </div>
+
+    <!-- Tracking: my orders are the product -->
+    <div class="mine" id="mine" hidden>
+      <h2 class="sec-title ink" id="mineTitle">Your orders</h2>
+      <div class="mine-list" id="mineList"></div>
+      <div class="add-more" id="addTok">
+        <p class="status" id="addTitle">Add another</p>
+        <p class="sub" id="addSub">Same counter, another token.</p>
+        <input class="tokin" id="tokIn" type="text" inputmode="numeric" maxlength="4" placeholder="000" aria-label="Another token number" autocomplete="off"><br>
+        <button class="btn red" id="getTok">Add order</button>
       </div>
     </div>
-    <div class="hero"><small id="heroLbl">No orders ready yet</small><div class="num" id="heroNum">…</div><div class="ctr" id="heroCtr"></div></div>
-    <div class="prepbar" id="prepbar" hidden></div>
-    <h2>Ready to collect</h2>
-    <div class="grid" id="grid"></div>
-    <p class="hint" id="sync" style="margin-top:20px;text-align:center"></p>
+
+    <!-- Secondary context: compact ready strip (not a masonry wall) -->
+    <div class="ready-context" id="readyContext">
+      <h2 class="sec-title" id="readyTitle">What’s ready</h2>
+      <div class="strip" id="strip"></div>
+    </div>
+
+    <p class="sync-foot" id="sync"></p>
   </section>
 </main>
 <div class="alert" id="alert" role="alertdialog" aria-labelledby="alH" hidden>

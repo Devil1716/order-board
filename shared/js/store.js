@@ -9,13 +9,14 @@
   var ORDERS_KEY = 'ob-orders-v1';
   var NEXT_KEY = 'ob-next';
   var MINE_KEY = 'ob-mine';
+  var MINES_KEY = 'ob-mines-v1';
   var H4 = 4 * 3600000;
 
   var orders = [];
   var listeners = [];
   var col = null;
   var firebaseReady = false;
-  var syncLabel = 'Local only. Paste Firebase config so Student + Staff apps sync.';
+  var syncLabel = 'On this phone only — connect Firebase to sync with the counter.';
   var unsub = null;
 
   function emit() {
@@ -112,7 +113,7 @@
         pruneStale();
         persistLocal();
         firebaseReady = true;
-        syncLabel = 'Live sync on. Every open screen updates instantly.';
+        syncLabel = 'Live with the counter.';
         emit();
       }, function () {
         syncLabel = 'Firestore error — using local copy.';
@@ -121,7 +122,7 @@
       return true;
     } catch (e) {
       console.warn('Firebase init failed', e);
-      syncLabel = 'Firebase failed to load — local only.';
+      syncLabel = 'Couldn’t reach the cloud — still works on this phone.';
       return false;
     }
   }
@@ -157,21 +158,76 @@
       rd.sort(function (a, b) { return b.r - a.r; });
       return { prep: prep, rd: rd };
     },
-    async getMine() {
-      var v = await global.OBNative.prefsGet(MINE_KEY);
-      if (v === null || v === undefined || v === '') {
-        try { v = localStorage.getItem(MINE_KEY); } catch (e) { v = null; }
+    async getMines() {
+      var raw = await global.OBNative.prefsGet(MINES_KEY);
+      if (raw === null || raw === undefined || raw === '') {
+        try { raw = localStorage.getItem(MINES_KEY); } catch (e) { raw = null; }
       }
-      return v ? +v : null;
+      if (raw) {
+        try {
+          var arr = JSON.parse(raw);
+          if (Array.isArray(arr)) {
+            return arr.map(function (x) { return +x; }).filter(function (n) {
+              return n >= 1 && n === n;
+            }).filter(function (n, i, a) { return a.indexOf(n) === i; });
+          }
+        } catch (e) {}
+      }
+      // Migrate legacy single ob-mine
+      var legacy = await global.OBNative.prefsGet(MINE_KEY);
+      if (legacy === null || legacy === undefined || legacy === '') {
+        try { legacy = localStorage.getItem(MINE_KEY); } catch (e) { legacy = null; }
+      }
+      if (legacy) {
+        var n = +legacy;
+        if (n >= 1) {
+          await Store.setMines([n]);
+          return [n];
+        }
+      }
+      return [];
+    },
+    async setMines(arr) {
+      var list = (arr || []).map(function (x) { return +x; }).filter(function (n) {
+        return n >= 1 && n === n;
+      }).filter(function (n, i, a) { return a.indexOf(n) === i; });
+      if (!list.length) {
+        await global.OBNative.prefsRemove(MINES_KEY);
+        await global.OBNative.prefsRemove(MINE_KEY);
+        try {
+          localStorage.removeItem(MINES_KEY);
+          localStorage.removeItem(MINE_KEY);
+        } catch (e) {}
+        return [];
+      }
+      var payload = JSON.stringify(list);
+      await global.OBNative.prefsSet(MINES_KEY, payload);
+      await global.OBNative.prefsSet(MINE_KEY, String(list[0]));
+      try {
+        localStorage.setItem(MINES_KEY, payload);
+        localStorage.setItem(MINE_KEY, String(list[0]));
+      } catch (e) {}
+      return list;
+    },
+    async addMine(n) {
+      n = +n;
+      if (!n || n < 1) return Store.getMines();
+      var list = await Store.getMines();
+      if (list.indexOf(n) === -1) list.push(n);
+      return Store.setMines(list);
+    },
+    async removeMine(n) {
+      n = +n;
+      var list = await Store.getMines();
+      return Store.setMines(list.filter(function (x) { return x !== n; }));
+    },
+    async getMine() {
+      var list = await Store.getMines();
+      return list.length ? list[0] : null;
     },
     async setMine(n) {
-      if (n === null || n === undefined) {
-        await global.OBNative.prefsRemove(MINE_KEY);
-        try { localStorage.removeItem(MINE_KEY); } catch (e) {}
-      } else {
-        await global.OBNative.prefsSet(MINE_KEY, String(n));
-        try { localStorage.setItem(MINE_KEY, String(n)); } catch (e) {}
-      }
+      if (n === null || n === undefined) return Store.setMines([]);
+      return Store.setMines([+n]);
     },
     async getNextStart() {
       var raw = await global.OBNative.prefsGet(NEXT_KEY);
@@ -194,7 +250,7 @@
       emit();
       await initFirebase();
       if (!col) {
-        syncLabel = 'Local only — Student and Staff on different phones need Firebase.';
+        syncLabel = 'On this phone only — connect Firebase to sync with the counter.';
         emit();
       }
     }

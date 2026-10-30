@@ -42,7 +42,7 @@
     if (!N) {
       try {
         if (global.Notification && Notification.permission === 'granted' && document.hidden) {
-          new Notification('Your order is ready', { body: 'Token ' + token + ' is ready at the counter.' });
+          new Notification('Cue', { body: 'Your order is ready — token ' + token + '.' });
         }
       } catch (e) {}
       return;
@@ -56,8 +56,8 @@
       await N.schedule({
         notifications: [{
           id: 1000 + (token % 1000),
-          title: 'Your order is ready',
-          body: 'Token ' + token + ' is ready at the counter.',
+          title: 'Cue',
+          body: 'Your order is ready — token ' + token + '.',
           sound: 'default',
           extra: { token: token }
         }]

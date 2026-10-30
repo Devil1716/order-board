@@ -1,6 +1,6 @@
 {
   "appId": "in.sharan.orderboard.staff",
-  "appName": "Order Board Staff",
+  "appName": "Cue Staff",
   "webDir": "www",
   "server": {
     "androidScheme": "https"
