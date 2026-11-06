@@ -676,14 +676,17 @@
 /* Begin XCSwiftPackageProductDependency section */
 		000E5942610A741F4A0BD607 /* CueCore */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 91E442593CDEEBB5FBCE584F /* XCLocalSwiftPackageReference "CueCore" */;
 			productName = CueCore;
 		};
 		23914C65882601F9FFE1BAB9 /* CueCore */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 91E442593CDEEBB5FBCE584F /* XCLocalSwiftPackageReference "CueCore" */;
 			productName = CueCore;
 		};
 		6E58D2EED8124ED2A0C9D104 /* CueCore */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 91E442593CDEEBB5FBCE584F /* XCLocalSwiftPackageReference "CueCore" */;
 			productName = CueCore;
 		};
 /* End XCSwiftPackageProductDependency section */
