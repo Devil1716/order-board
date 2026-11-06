@@ -1,0 +1,261 @@
+import SwiftUI
+import Combine
+import CueCore
+
+@MainActor
+public class CueStaffViewModel: ObservableObject {
+    public let store: BoardStore
+
+    @Published public var orders: [Order] = []
+    @Published public var syncLabel: String = ""
+    @Published public var typed: String = ""
+    @Published public var showAllPrep: Bool = false
+    @Published public var showAllReady: Bool = false
+    @Published public var nextStart: Int = 1
+
+    // Toast state
+    @Published public var toastMessage: String?
+    @Published public var showUndo: Bool = false
+    private var undoAction: (() -> Void)?
+    private var toastTask: Task<Void, Never>?
+
+    // Confirmation dialog for Clear All
+    @Published public var showClearAllConfirm: Bool = false
+
+    // PIN Gate state
+    @Published public var isUnlocked: Bool = false
+    @Published public var showPinSettings: Bool = false
+
+    private var cancellables = Set<AnyCancellable>()
+
+    public init(store: BoardStore = StoreFactory.createStore()) {
+        self.store = store
+        self.syncLabel = store.getSyncLabel()
+        self.orders = store.getOrders()
+
+        // Check if PIN gate is active
+        if KeychainService.isPinEnabled && KeychainService.hasPin() {
+            self.isUnlocked = false
+        } else {
+            self.isUnlocked = true
+        }
+
+        store.ordersPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newOrders in
+                self?.orders = newOrders
+            }
+            .store(in: &cancellables)
+
+        store.syncLabelPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newLabel in
+                self?.syncLabel = newLabel
+            }
+            .store(in: &cancellables)
+
+        Task {
+            self.nextStart = await store.getNextStart()
+        }
+    }
+
+    public var orderView: OrderView {
+        TokenRules.computeView(orders: orders)
+    }
+
+    public var typedToken: Int? {
+        Int(typed)
+    }
+
+    public var currentMode: StaffTokenMode {
+        guard let token = typedToken else { return .none }
+        return StaffTokenMode.modeOf(token: token, in: orderView)
+    }
+
+    public var nextTokenSuggestion: Int {
+        TokenRules.nextAvailableToken(currentOrders: orders, start: nextStart)
+    }
+
+    public var filteredPreparing: [Order] {
+        let q = typed
+        if q.isEmpty { return orderView.preparing }
+        return orderView.preparing.filter { String($0.token).contains(q) }
+    }
+
+    public var filteredReady: [Order] {
+        let q = typed
+        if q.isEmpty { return orderView.ready }
+        return orderView.ready.filter { String($0.token).contains(q) }
+    }
+
+    public var oldestPreparing: Order? {
+        orderView.preparing.first
+    }
+
+    // MARK: - Keypad Actions
+    public func pressKey(_ key: String) {
+        HapticsService.light()
+        if key == "Clear" {
+            typed = ""
+        } else if key == "Delete" {
+            if !typed.isEmpty {
+                typed.removeLast()
+            }
+        } else if typed.count < 3 { // Tokens range 1-150 (max 3 digits)
+            let candidate = typed + key
+            if let num = Int(candidate), num <= TokenRules.maxToken {
+                typed = String(num) // eliminates leading zeros
+            }
+        }
+    }
+
+    public func handleMainAction() {
+        guard let token = typedToken, TokenRules.isValidToken(token) else { return }
+        let mode = currentMode
+        typed = ""
+
+        switch mode {
+        case .preparing:
+            callReady(token)
+        case .ready:
+            handOver(token)
+        case .none:
+            addToken(token)
+        }
+    }
+
+    public func addToken(_ token: Int) {
+        HapticsService.impact()
+        Task {
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            _ = try? await store.write(token: token, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+            showToast("Token \(token) added") { [weak self] in
+                Task { [weak self] in
+                    _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
+                }
+            }
+        }
+    }
+
+    public func callReady(_ token: Int) {
+        HapticsService.impact()
+        SoundService.shared.chime()
+        Task {
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            _ = try? await store.write(token: token, fields: OrderWriteFields(readyMs: now))
+            showToast("Token \(token) is ready") { [weak self] in
+                Task { [weak self] in
+                    _ = try? await self?.store.write(token: token, fields: OrderWriteFields(readyMs: 0))
+                }
+            }
+        }
+    }
+
+    public func handOver(_ token: Int) {
+        HapticsService.impact()
+        Task {
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            _ = try? await store.write(token: token, fields: OrderWriteFields(collectedMs: now))
+            showToast("Token \(token) taken off") { [weak self] in
+                Task { [weak self] in
+                    _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: 0))
+                }
+            }
+        }
+    }
+
+    public func cancelPreparingOrder(_ token: Int) {
+        handOver(token)
+    }
+
+    public func giveNextToken() {
+        let n = nextTokenSuggestion
+        guard n > 0 else {
+            showToast("All \(TokenRules.maxToken) tokens are in use", undo: nil)
+            return
+        }
+
+        HapticsService.impact()
+        Task {
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            _ = try? await store.write(token: n, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+            let prevNext = nextStart
+            await store.setNextStart(n + 1)
+            nextStart = n + 1 > TokenRules.maxToken ? 1 : n + 1
+
+            showToast("Give customer token \(n)") { [weak self] in
+                Task { [weak self] in
+                    _ = try? await self?.store.write(token: n, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
+                    await self?.store.setNextStart(prevNext)
+                    self?.nextStart = prevNext
+                }
+            }
+        }
+    }
+
+    public func restartNumberingAt1() {
+        HapticsService.light()
+        Task {
+            await store.setNextStart(1)
+            nextStart = 1
+            showToast("Numbering restarts at 1", undo: nil)
+        }
+    }
+
+    public func clearAllReady() {
+        let readyList = orderView.ready
+        guard !readyList.isEmpty else { return }
+
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        Task {
+            for o in readyList {
+                _ = try? await store.write(token: o.token, fields: OrderWriteFields(collectedMs: now))
+            }
+
+            let msg = readyList.count == 1
+                ? "Token \(readyList[0].token) taken off"
+                : "\(readyList.count) ready tokens taken off"
+
+            showToast(msg) { [weak self] in
+                Task { [weak self] in
+                    for o in readyList {
+                        _ = try? await self?.store.write(token: o.token, fields: OrderWriteFields(collectedMs: 0))
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Toast helper
+    public func showToast(_ message: String, undo: (() -> Void)? = nil) {
+        toastTask?.cancel()
+        toastMessage = message
+        undoAction = undo
+        showUndo = undo != nil
+
+        toastTask = Task {
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            if !Task.isCancelled {
+                self.toastMessage = nil
+                self.undoAction = nil
+                self.showUndo = false
+            }
+        }
+    }
+
+    public func triggerUndo() {
+        toastTask?.cancel()
+        undoAction?()
+        toastMessage = nil
+        undoAction = nil
+        showUndo = false
+    }
+
+    public func unlockWithPin(_ pin: String) -> Bool {
+        if KeychainService.verifyPin(pin) {
+            isUnlocked = true
+            return true
+        }
+        return false
+    }
+}
