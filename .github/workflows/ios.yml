@@ -3,6 +3,8 @@ name: Build iOS + Android
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -10,53 +12,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  unit-tests:
+    name: Native iOS Unit Tests
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run CueCore Unit Tests
+        run: |
+          set -euo pipefail
+          DEVICE_DEST=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([A-F0-9-]+)\).*/id=\1/' || true)
+          if [ -z "$DEVICE_DEST" ]; then
+            DEST="generic/platform=iOS Simulator"
+            ACTION="build-for-testing"
+          else
+            DEST="platform=iOS Simulator,$DEVICE_DEST"
+            ACTION="test"
+          fi
+          echo "Testing with destination: $DEST"
+          xcodebuild \
+            -workspace ios/Cue.xcworkspace \
+            -scheme CueCoreTests \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "$DEST" \
+            $ACTION \
+            CODE_SIGNING_ALLOWED=NO
+
   simulator:
-    name: Simulator (${{ matrix.app }})
+    name: Simulator (${{ matrix.name }})
+    needs: [unit-tests]
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - app: student
+          - scheme: Cue
+            name: student
+            app_name: Cue.app
             artifact: Cue-student-ios-simulator
-          - app: staff
+          - scheme: CueStaff
+            name: staff
+            app_name: CueStaff.app
             artifact: Cue-staff-ios-simulator
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Link workspace node_modules for Capacitor Gradle/iOS paths
-        run: |
-          ln -sfn ../../node_modules apps/student/node_modules
-          ln -sfn ../../node_modules apps/staff/node_modules
-
-      - name: Sync shared web assets
-        run: npm run sync-shared
-
-      - name: Sync Capacitor iOS
-        working-directory: apps/${{ matrix.app }}
-        run: npx cap sync ios
-
-      - name: Install CocoaPods
-        working-directory: apps/${{ matrix.app }}/ios/App
-        run: pod install
-
       - name: Build for iOS Simulator
-        working-directory: apps/${{ matrix.app }}/ios/App
         run: |
           set -euo pipefail
           xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
+            -workspace ios/Cue.xcworkspace \
+            -scheme ${{ matrix.scheme }} \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
@@ -65,19 +74,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Package .app artifact
-        working-directory: apps/${{ matrix.app }}/ios/App
         run: |
           set -euo pipefail
-          APP_PATH=$(find build/Build/Products -type d -name 'App.app' | head -n 1)
+          APP_PATH=$(find build/Build/Products -type d -name "${{ matrix.app_name }}" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            echo "App.app not found under build/Build/Products"
+            echo "${{ matrix.app_name }} not found under build/Build/Products"
             find build -type d -name '*.app' || true
             exit 1
           fi
           echo "Found: $APP_PATH"
-          mkdir -p ../../../../artifacts
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" ../../../../artifacts/${{ matrix.artifact }}.zip
-          ls -lh ../../../../artifacts/
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" artifacts/${{ matrix.artifact }}.zip
+          ls -lh artifacts/
 
       - name: Upload simulator artifact
         uses: actions/upload-artifact@v4
