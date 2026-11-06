@@ -7,10 +7,7 @@ options:
 settings:
   base:
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
-    SWIFT_VERSION: "5.9"
-    CODE_SIGNING_ALLOWED: NO
-    CODE_SIGN_IDENTITY: ""
-    CODE_SIGNING_REQUIRED: NO
+    SWIFT_VERSION: "5.0"
 
 packages:
   CueCore:
@@ -26,6 +23,14 @@ targets:
     dependencies:
       - package: CueCore
         product: CueCore
+    postBuildScripts:
+      - name: Copy Firebase Config if Present
+        script: |
+          if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
+            cp "${SRCROOT}/GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          elif [ -f "${SRCROOT}/../GoogleService-Info.plist" ]; then
+            cp "${SRCROOT}/../GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          fi
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard
@@ -49,6 +54,14 @@ targets:
     dependencies:
       - package: CueCore
         product: CueCore
+    postBuildScripts:
+      - name: Copy Firebase Config if Present
+        script: |
+          if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
+            cp "${SRCROOT}/GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          elif [ -f "${SRCROOT}/../GoogleService-Info.plist" ]; then
+            cp "${SRCROOT}/../GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          fi
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard.staff

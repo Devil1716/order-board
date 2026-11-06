@@ -54,8 +54,8 @@ public struct PinSettingsSheet: View {
                         }
 
                         Button("Save PIN") {
-                            guard newPin.count == 4, newPin.allSatisfy({ $0.isNumber }) else {
-                                statusMsg = "PIN must be exactly 4 digits."
+                            guard newPin.count == 4, newPin.allSatisfy({ "0123456789".contains($0) }) else {
+                                statusMsg = "PIN must be exactly 4 digits (0-9)."
                                 return
                             }
                             guard newPin == confirmPin else {

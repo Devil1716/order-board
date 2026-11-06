@@ -104,7 +104,6 @@ jobs:
             cp apps/$a/android/app/build/outputs/apk/debug/app-debug.apk out/Cue-$a-debug.apk
           done
       - uses: actions/upload-artifact@v4
-      - uses: actions/upload-artifact@v4
         with:
           name: Cue-android-apks
           path: out/*.apk

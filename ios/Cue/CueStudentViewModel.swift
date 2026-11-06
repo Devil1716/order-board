@@ -44,8 +44,19 @@ public class CueStudentViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Periodic clock-driven timer to refresh elapsed times and re-evaluate alerts
+        Timer.publish(every: 2, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+                self?.checkForReadyAlerts()
+            }
+            .store(in: &cancellables)
+
         Task {
             self.trackedTokens = await store.getTrackedTokens()
+            // Restore keep-awake state on cold launch if user was tracking orders
+            KeepAwakeService.setKeepAwake(!self.trackedTokens.isEmpty)
             self.checkForReadyAlerts()
         }
     }
@@ -195,6 +206,9 @@ public class CueStudentViewModel: ObservableObject {
             ackedReadyTokens[token] = order?.readyMs ?? Int64(Date().timeIntervalSince1970 * 1000)
         }
         alertToken = nil
+        // Check if there are other pending ready orders to alert
+        checkForReadyAlerts()
+
         if trackedTokens.isEmpty {
             KeepAwakeService.setKeepAwake(false)
         }

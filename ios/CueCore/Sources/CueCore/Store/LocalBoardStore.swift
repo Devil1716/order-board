@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-/// Local-first, in-memory board store with UserDefaults persistence.
+/// Local-first, thread-safe in-memory board store with UserDefaults persistence.
 /// Used when Firebase is not configured or offline, matching `shared/js/store.js`.
 public class LocalBoardStore: BoardStore {
     private let ordersKey = "ob-orders-v1"
@@ -9,6 +9,7 @@ public class LocalBoardStore: BoardStore {
     private let minesKey = "ob-mines-v1"
     private let legacyMineKey = "ob-mine"
 
+    private let queue = DispatchQueue(label: "in.sharan.orderboard.localstore")
     private var orders: [Order] = []
     private let ordersSubject = CurrentValueSubject<[Order], Never>([])
     private let syncLabelSubject = CurrentValueSubject<String, Never>("On this phone only — connect Firebase to sync with the counter.")
@@ -27,22 +28,24 @@ public class LocalBoardStore: BoardStore {
 
     public init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
-        loadLocal()
-        pruneStale()
-        emit()
+        queue.sync {
+            loadLocalInternal()
+            pruneStaleInternal()
+            emitInternal()
+        }
     }
 
-    private func emit() {
+    private func emitInternal() {
         ordersSubject.send(orders)
     }
 
-    private func persistLocal() {
+    private func persistLocalInternal() {
         if let data = try? JSONEncoder().encode(orders) {
             userDefaults.set(data, forKey: ordersKey)
         }
     }
 
-    private func loadLocal() {
+    private func loadLocalInternal() {
         if let data = userDefaults.data(forKey: ordersKey),
            let decoded = try? JSONDecoder().decode([Order].self, forKey: data) {
             self.orders = decoded.filter { $0.token > 0 }
@@ -53,48 +56,68 @@ public class LocalBoardStore: BoardStore {
         }
     }
 
-    public func pruneStale() {
+    private func pruneStaleInternal() {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         orders = orders.filter { (now - $0.createdMs) <= TokenRules.staleWindowMs }
     }
 
+    public func pruneStale() {
+        queue.sync {
+            pruneStaleInternal()
+            persistLocalInternal()
+            emitInternal()
+        }
+    }
+
     public func getOrders() -> [Order] {
-        return orders
+        queue.sync { orders }
     }
 
     public func getSyncLabel() -> String {
-        return syncLabelSubject.value
+        syncLabelSubject.value
     }
 
     public func setSyncLabel(_ label: String) {
         syncLabelSubject.send(label)
     }
 
+    /// Atomically replaces cached orders with an authoritative snapshot from Firestore
+    public func replaceOrdersSync(_ newOrders: [Order]) {
+        queue.sync {
+            self.orders = newOrders.filter { $0.token > 0 }
+            self.pruneStaleInternal()
+            self.persistLocalInternal()
+            self.emitInternal()
+        }
+    }
+
     @discardableResult
     public func writeSync(token: Int, fields: OrderWriteFields) -> Order {
-        var existing = orders.first(where: { $0.token == token })
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        queue.sync {
+            var existing = orders.first(where: { $0.token == token })
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
 
-        if existing == nil {
-            let newOrder = Order(
-                token: token,
-                createdMs: fields.createdMs ?? now,
-                readyMs: fields.readyMs ?? 0,
-                collectedMs: fields.collectedMs ?? 0
-            )
-            orders.append(newOrder)
-            existing = newOrder
-        } else if let index = orders.firstIndex(where: { $0.token == token }) {
-            if let c = fields.createdMs { orders[index].createdMs = c }
-            if let r = fields.readyMs { orders[index].readyMs = r }
-            if let col = fields.collectedMs { orders[index].collectedMs = col }
-            existing = orders[index]
+            if existing == nil {
+                let newOrder = Order(
+                    token: token,
+                    createdMs: fields.createdMs ?? now,
+                    readyMs: fields.readyMs ?? 0,
+                    collectedMs: fields.collectedMs ?? 0
+                )
+                orders.append(newOrder)
+                existing = newOrder
+            } else if let index = orders.firstIndex(where: { $0.token == token }) {
+                if let c = fields.createdMs { orders[index].createdMs = c }
+                if let r = fields.readyMs { orders[index].readyMs = r }
+                if let col = fields.collectedMs { orders[index].collectedMs = col }
+                existing = orders[index]
+            }
+
+            pruneStaleInternal()
+            persistLocalInternal()
+            emitInternal()
+            return existing!
         }
-
-        pruneStale()
-        persistLocal()
-        emit()
-        return existing!
     }
 
     @discardableResult
@@ -103,12 +126,15 @@ public class LocalBoardStore: BoardStore {
     }
 
     public func find(token: Int) -> Order? {
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        return orders.first { $0.token == token && (now - $0.createdMs) <= TokenRules.staleWindowMs }
+        queue.sync {
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            return orders.first { $0.token == token && (now - $0.createdMs) <= TokenRules.staleWindowMs }
+        }
     }
 
     public func view(expiryMinutes: Int = TokenRules.defaultExpiryMinutes) -> OrderView {
-        return TokenRules.computeView(orders: orders, expiryMinutes: expiryMinutes)
+        let currentOrders = getOrders()
+        return TokenRules.computeView(orders: currentOrders, expiryMinutes: expiryMinutes)
     }
 
     // MARK: - Student Tracked Tokens

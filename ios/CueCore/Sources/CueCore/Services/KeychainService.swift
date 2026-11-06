@@ -5,6 +5,17 @@ public enum KeychainService {
     private static let serviceName = "in.sharan.orderboard.staff"
     private static let pinAccount = "staff_pin"
     private static let pinEnabledKey = "ob_staff_pin_enabled"
+    private static let onboardingCompletedKey = "ob_staff_pin_onboarding_completed"
+
+    /// Tracks whether the staff PIN onboarding (set/confirm/skip) has been completed
+    public static var hasCompletedOnboarding: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: onboardingCompletedKey)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: onboardingCompletedKey)
+        }
+    }
 
     public static var isPinEnabled: Bool {
         get {
@@ -23,23 +34,41 @@ public enum KeychainService {
     public static func savePin(_ pin: String) -> Bool {
         guard let data = pin.data(using: .utf8) else { return false }
 
-        // Remove any existing entry first
-        deletePin()
-
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: pinAccount,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            kSecAttrAccount as String: pinAccount
         ]
 
-        let status = SecItemAdd(query as CFDictionary, nil)
-        if status == errSecSuccess {
-            isPinEnabled = true
-            return true
+        // Check if an item already exists
+        let matchStatus = SecItemCopyMatching(query as CFDictionary, nil)
+        if matchStatus == errSecSuccess {
+            // Update existing without deleting first, preserving old PIN if update fails
+            let updateAttributes: [String: Any] = [
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            ]
+            let updateStatus = SecItemUpdate(query as CFDictionary, updateAttributes as CFDictionary)
+            if updateStatus == errSecSuccess {
+                isPinEnabled = true
+                hasCompletedOnboarding = true
+                return true
+            }
+            return false
+        } else {
+            // Add new item
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if addStatus == errSecSuccess {
+                isPinEnabled = true
+                hasCompletedOnboarding = true
+                return true
+            }
+            return false
         }
-        return false
     }
 
     public static func getPin() -> String? {

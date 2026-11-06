@@ -177,8 +177,8 @@ GitHub Actions workflow [`.github/workflows/ios.yml`](.github/workflows/ios.yml)
 - **`android`**: Builds debug APKs for Student and Staff on Ubuntu.
 - **`signing-gate`**: Checks for Apple distribution certificate secrets.
 
-### Device IPA / TestFlight Signing Secrets
-To generate signed IPAs for TestFlight, set these repository secrets:
+### Device IPA / TestFlight Signing (Template)
+The CI workflow currently produces simulator artifacts. Signed IPA export and TestFlight distribution require provisioning profiles per bundle ID. When ready for signed builds, extend the device job template with these repository secrets:
 | Secret | Contents |
 |---|---|
 | `IOS_BUILD_CERTIFICATE_BASE64` | Distribution / Ad Hoc `.p12`, base64 |
@@ -186,6 +186,8 @@ To generate signed IPAs for TestFlight, set these repository secrets:
 | `IOS_PROVISIONING_PROFILE_STUDENT_BASE64` | Provisioning profile for `in.sharan.orderboard` |
 | `IOS_PROVISIONING_PROFILE_STAFF_BASE64` | Provisioning profile for `in.sharan.orderboard.staff` |
 | `IOS_TEAM_ID` | 10-character Apple Team ID |
+
+> **Notifications Note**: Foreground and active alert notifications are dispatched locally by the app with screen keep-awake enabled while tracking orders. For background push notifications while the app is completely suspended by iOS, connect Firebase Cloud Functions to Apple Push Notification service (APNs).
 
 ---
 

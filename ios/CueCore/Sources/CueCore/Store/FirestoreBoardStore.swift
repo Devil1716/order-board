@@ -40,7 +40,7 @@ public class FirestoreBoardStore: BoardStore {
     private func startListening() {
         let collectionRef = db.collection("orders")
 
-        listenerRegistration = collectionRef.addSnapshotListener { [weak self] snapshot, error in
+        listenerRegistration = collectionRef.addSnapshotListener(includeMetadataChanges: true) { [weak self] snapshot, error in
             guard let self = self else { return }
 
             if let error = error {
@@ -49,10 +49,10 @@ public class FirestoreBoardStore: BoardStore {
                 return
             }
 
-            guard let documents = snapshot?.documents else { return }
+            guard let snapshot = snapshot else { return }
 
             var fetchedOrders: [Order] = []
-            for doc in documents {
+            for doc in snapshot.documents {
                 guard let token = Int(doc.documentID), TokenRules.isValidToken(token) else { continue }
                 let data = doc.data()
                 let t = (data["t"] as? NSNumber)?.int64Value ?? (data["t"] as? Int64) ?? 0
@@ -67,16 +67,20 @@ public class FirestoreBoardStore: BoardStore {
             let now = Int64(Date().timeIntervalSince1970 * 1000)
             let validOrders = fetchedOrders.filter { (now - $0.createdMs) <= TokenRules.staleWindowMs }
 
-            // Update local memory & disk
-            for order in validOrders {
-                self.localStore.writeSync(
-                    token: order.token,
-                    fields: OrderWriteFields(createdMs: order.createdMs, readyMs: order.readyMs, collectedMs: order.collectedMs)
-                )
-            }
-
+            // Atomically replace local cache with authoritative remote snapshot
+            self.localStore.replaceOrdersSync(validOrders)
             self.ordersSubject.send(validOrders)
-            self.syncLabelSubject.send("Live with the counter.")
+
+            // Derive connection status from snapshot metadata
+            if snapshot.metadata.isFromCache {
+                if snapshot.metadata.hasPendingWrites {
+                    self.syncLabelSubject.send("Offline — changes saved locally.")
+                } else {
+                    self.syncLabelSubject.send("Offline (cached) — reconnecting...")
+                }
+            } else {
+                self.syncLabelSubject.send("Live with the counter.")
+            }
         }
     }
 
@@ -90,23 +94,42 @@ public class FirestoreBoardStore: BoardStore {
 
     @discardableResult
     public func write(token: Int, fields: OrderWriteFields) async throws -> Order {
-        // Optimistically update local store
-        let localOrder = try await localStore.write(token: token, fields: fields)
+        // 1. Optimistically update local store immediately for instant UI progress
+        let isNewOrder = (localStore.find(token: token) == nil)
+        let localOrder = localStore.writeSync(token: token, fields: fields)
         ordersSubject.send(localStore.getOrders())
 
-        // Sync to Firestore
+        // 2. Build payload updating ONLY the explicitly supplied fields
         let docRef = db.collection("orders").document(String(token))
         var data: [String: Any] = [:]
-        if let t = fields.createdMs { data["t"] = t } else { data["t"] = localOrder.createdMs }
-        if let r = fields.readyMs { data["r"] = r } else { data["r"] = localOrder.readyMs }
-        if let c = fields.collectedMs { data["c"] = c } else { data["c"] = localOrder.collectedMs }
 
-        do {
-            try await docRef.setData(data, merge: true)
-            syncLabelSubject.send("Live with the counter.")
-        } catch {
-            print("Firestore write error: \(error.localizedDescription)")
-            syncLabelSubject.send("Could not sync. Check connection — local copy is safe.")
+        if let t = fields.createdMs {
+            data["t"] = t
+        } else if isNewOrder {
+            data["t"] = localOrder.createdMs
+        }
+
+        if let r = fields.readyMs {
+            data["r"] = r
+        } else if isNewOrder {
+            data["r"] = Int64(0)
+        }
+
+        if let c = fields.collectedMs {
+            data["c"] = c
+        } else if isNewOrder {
+            data["c"] = Int64(0)
+        }
+
+        // 3. Dispatch to Firestore in background without blocking local UI execution
+        Task { [weak self] in
+            do {
+                try await docRef.setData(data, merge: true)
+                self?.syncLabelSubject.send("Live with the counter.")
+            } catch {
+                print("Firestore write error: \(error.localizedDescription)")
+                self?.syncLabelSubject.send("Could not sync. Check connection — local copy is safe.")
+            }
         }
 
         return localOrder

@@ -33,8 +33,10 @@ public class CueStaffViewModel: ObservableObject {
         self.syncLabel = store.getSyncLabel()
         self.orders = store.getOrders()
 
-        // Check if PIN gate is active
-        if KeychainService.isPinEnabled && KeychainService.hasPin() {
+        // Check if PIN gate is active or onboarding needs to be shown
+        if !KeychainService.hasCompletedOnboarding {
+            self.isUnlocked = false
+        } else if KeychainService.isPinEnabled && KeychainService.hasPin() {
             self.isUnlocked = false
         } else {
             self.isUnlocked = true
@@ -51,6 +53,14 @@ public class CueStaffViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newLabel in
                 self?.syncLabel = newLabel
+            }
+            .store(in: &cancellables)
+
+        // Periodic foreground timer to refresh elapsed times and time-based queues while idle
+        Timer.publish(every: 2, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
             }
             .store(in: &cancellables)
 

@@ -60,6 +60,7 @@ public struct PinGateView: View {
                     HStack(spacing: 12) {
                         if isSettingNewPin {
                             Button("Skip") {
+                                KeychainService.hasCompletedOnboarding = true
                                 KeychainService.isPinEnabled = false
                                 viewModel.isUnlocked = true
                             }
