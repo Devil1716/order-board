@@ -15,15 +15,7 @@ public struct CueStaffHeaderView: View {
         HStack(alignment: .center, spacing: CueTheme.space1) {
             // Brand Logo & Title
             HStack(spacing: 10) {
-                Image("logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.black.opacity(0.06), lineWidth: 1)
-                    )
+                CueLogoView(size: 36, cornerRadius: 10)
 
                 Text("Cue Staff")
                     .font(.system(size: 20, weight: .heavy))

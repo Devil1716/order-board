@@ -22,11 +22,7 @@ public struct PinGateView: View {
             VStack(spacing: 24) {
                 Spacer()
 
-                Image("logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                CueLogoView(size: 64, cornerRadius: 16)
 
                 Text(isSettingNewPin ? (step == 1 ? "Set Staff PIN" : "Confirm Staff PIN") : "Enter Staff PIN")
                     .font(.system(size: 28, weight: .heavy))
