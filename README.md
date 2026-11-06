@@ -86,8 +86,10 @@ Requires macOS with Xcode 15+ (Swift 5.9+), targeting iOS 16.0+.
 
 ### Open in Xcode
 ```bash
-open ios/Cue.xcodeproj
+open ios/Cue.xcworkspace
 ```
+*(Opening the `.xcworkspace` ensures the local `CueCore` package and both `Cue` / `CueStaff` app targets are resolved together in Xcode).*
+
 1. Select the **`Cue`** scheme for the Student app, or **`CueStaff`** for the Staff counter app.
 2. Select any iOS Simulator or connected physical device.
 3. Press **Cmd + R** to run.
