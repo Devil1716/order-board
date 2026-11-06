@@ -126,41 +126,56 @@ public class CueStaffViewModel: ObservableObject {
 
     public func addToken(_ token: Int) {
         HapticsService.impact()
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await store.write(token: token, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
-            showToast("Token \(token) added") { [weak self] in
-                Task { [weak self] in
-                    _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
-                }
+            _ = try? await self.store.write(token: token, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+            self.showToast("Token \(token) added") { [weak self] in
+                self?.undoAddToken(token)
             }
+        }
+    }
+
+    private func undoAddToken(_ token: Int) {
+        Task { [weak self] in
+            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
         }
     }
 
     public func callReady(_ token: Int) {
         HapticsService.impact()
         SoundService.shared.chime()
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await store.write(token: token, fields: OrderWriteFields(readyMs: now))
-            showToast("Token \(token) is ready") { [weak self] in
-                Task { [weak self] in
-                    _ = try? await self?.store.write(token: token, fields: OrderWriteFields(readyMs: 0))
-                }
+            _ = try? await self.store.write(token: token, fields: OrderWriteFields(readyMs: now))
+            self.showToast("Token \(token) is ready") { [weak self] in
+                self?.undoCallReady(token)
             }
+        }
+    }
+
+    private func undoCallReady(_ token: Int) {
+        Task { [weak self] in
+            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(readyMs: 0))
         }
     }
 
     public func handOver(_ token: Int) {
         HapticsService.impact()
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await store.write(token: token, fields: OrderWriteFields(collectedMs: now))
-            showToast("Token \(token) taken off") { [weak self] in
-                Task { [weak self] in
-                    _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: 0))
-                }
+            _ = try? await self.store.write(token: token, fields: OrderWriteFields(collectedMs: now))
+            self.showToast("Token \(token) taken off") { [weak self] in
+                self?.undoHandOver(token)
             }
+        }
+    }
+
+    private func undoHandOver(_ token: Int) {
+        Task { [weak self] in
+            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: 0))
         }
     }
 
@@ -176,29 +191,35 @@ public class CueStaffViewModel: ObservableObject {
         }
 
         HapticsService.impact()
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await store.write(token: n, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
-            let prevNext = nextStart
-            await store.setNextStart(n + 1)
-            nextStart = n + 1 > TokenRules.maxToken ? 1 : n + 1
+            _ = try? await self.store.write(token: n, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+            let prevNext = self.nextStart
+            await self.store.setNextStart(n + 1)
+            self.nextStart = n + 1 > TokenRules.maxToken ? 1 : n + 1
 
-            showToast("Give customer token \(n)") { [weak self] in
-                Task { [weak self] in
-                    _ = try? await self?.store.write(token: n, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
-                    await self?.store.setNextStart(prevNext)
-                    self?.nextStart = prevNext
-                }
+            self.showToast("Give customer token \(n)") { [weak self] in
+                self?.undoGiveNextToken(n, prevNext: prevNext)
             }
+        }
+    }
+
+    private func undoGiveNextToken(_ token: Int, prevNext: Int) {
+        Task { [weak self] in
+            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
+            await self?.store.setNextStart(prevNext)
+            self?.nextStart = prevNext
         }
     }
 
     public func restartNumberingAt1() {
         HapticsService.light()
-        Task {
-            await store.setNextStart(1)
-            nextStart = 1
-            showToast("Numbering restarts at 1", undo: nil)
+        Task { [weak self] in
+            guard let self = self else { return }
+            await self.store.setNextStart(1)
+            self.nextStart = 1
+            self.showToast("Numbering restarts at 1", undo: nil)
         }
     }
 
@@ -207,21 +228,27 @@ public class CueStaffViewModel: ObservableObject {
         guard !readyList.isEmpty else { return }
 
         let now = Int64(Date().timeIntervalSince1970 * 1000)
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             for o in readyList {
-                _ = try? await store.write(token: o.token, fields: OrderWriteFields(collectedMs: now))
+                _ = try? await self.store.write(token: o.token, fields: OrderWriteFields(collectedMs: now))
             }
 
             let msg = readyList.count == 1
                 ? "Token \(readyList[0].token) taken off"
                 : "\(readyList.count) ready tokens taken off"
 
-            showToast(msg) { [weak self] in
-                Task { [weak self] in
-                    for o in readyList {
-                        _ = try? await self?.store.write(token: o.token, fields: OrderWriteFields(collectedMs: 0))
-                    }
-                }
+            self.showToast(msg) { [weak self] in
+                self?.undoClearAllReady(readyList)
+            }
+        }
+    }
+
+    private func undoClearAllReady(_ orders: [Order]) {
+        Task { [weak self] in
+            guard let self = self else { return }
+            for o in orders {
+                _ = try? await self.store.write(token: o.token, fields: OrderWriteFields(collectedMs: 0))
             }
         }
     }
