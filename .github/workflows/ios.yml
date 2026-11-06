@@ -22,7 +22,23 @@ jobs:
       - name: Run CueCore Unit Tests
         run: |
           set -euo pipefail
-          swift test --package-path ios/CueCore
+          DEVICE_DEST=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([A-F0-9-]+)\).*/id=\1/' || true)
+          if [ -z "$DEVICE_DEST" ]; then
+            DEST="generic/platform=iOS Simulator"
+            ACTION="build-for-testing"
+          else
+            DEST="platform=iOS Simulator,$DEVICE_DEST"
+            ACTION="test"
+          fi
+          echo "Testing with destination: $DEST"
+          xcodebuild \
+            -workspace ios/Cue.xcworkspace \
+            -scheme CueCoreTests \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "$DEST" \
+            $ACTION \
+            CODE_SIGNING_ALLOWED=NO
 
   simulator:
     name: Simulator (${{ matrix.name }})
@@ -48,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild \
-            -project ios/Cue.xcodeproj \
+            -workspace ios/Cue.xcworkspace \
             -scheme ${{ matrix.scheme }} \
             -configuration Debug \
             -sdk iphonesimulator \

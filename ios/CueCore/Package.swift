@@ -6,8 +6,7 @@ let package = Package(
     name: "CueCore",
     defaultLocalization: "en",
     platforms: [
-        .iOS(.v16),
-        .macOS(.v13)
+        .iOS(.v16)
     ],
     products: [
         .library(
