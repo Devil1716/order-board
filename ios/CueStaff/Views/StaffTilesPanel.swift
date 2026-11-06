@@ -161,12 +161,12 @@ public struct StaffTilesPanel: View {
                     Text("\(order.token)")
                         .font(.system(size: 42, weight: .heavy, design: .rounded))
                         .monospacedDigit()
-                        .foregroundColor(isOldest ? CueTheme.redInk : CueTheme.cardInk)
+                        .foregroundColor(isOldest ? CueTheme.redInk : CueTheme.ink(for: colorScheme))
                         .frame(maxWidth: .infinity, minHeight: 64)
 
                     Text(ageStr)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(isOldest ? CueTheme.redInk.opacity(0.9) : CueTheme.cardInk.opacity(0.75))
+                        .foregroundColor(isOldest ? CueTheme.redInk.opacity(0.9) : CueTheme.mute(for: colorScheme))
 
                     if isOldest {
                         Text("UP NEXT")
@@ -182,14 +182,14 @@ public struct StaffTilesPanel: View {
             } label: {
                 Text("Cancel order")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(isOldest ? CueTheme.redInk.opacity(0.8) : CueTheme.cardInk.opacity(0.7))
+                    .foregroundColor(isOldest ? CueTheme.redInk.opacity(0.8) : CueTheme.mute(for: colorScheme))
                     .underline()
                     .padding(.vertical, 4)
             }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 6)
-        .background(isOldest ? CueTheme.red : CueTheme.p2)
+        .background(isOldest ? CueTheme.red : CueTheme.tileBg(for: colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: CueTheme.radiusTile))
         .shadow(color: isOldest ? CueTheme.red.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
     }
@@ -203,11 +203,11 @@ public struct StaffTilesPanel: View {
                 Text("\(order.token)")
                     .font(.system(size: 42, weight: .heavy, design: .rounded))
                     .monospacedDigit()
-                    .foregroundColor(CueTheme.cardInk)
+                    .foregroundColor(CueTheme.ink(for: colorScheme))
                     .frame(maxWidth: .infinity, minHeight: 80)
             }
             .padding(.vertical, 8)
-            .background(CueTheme.p1)
+            .background(CueTheme.readyTileBg(for: colorScheme))
             .clipShape(RoundedRectangle(cornerRadius: CueTheme.radiusTile))
         }
         .accessibilityLabel("Token \(order.token) handed over")

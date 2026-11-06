@@ -41,7 +41,7 @@ public struct StudentReadyStripView: View {
                                 .padding(.horizontal, 16)
                                 .frame(minWidth: 48, minHeight: 44)
                                 .background(isMine ? CueTheme.red : CueTheme.card(for: colorScheme))
-                                .foregroundColor(isMine ? CueTheme.redInk : CueTheme.cardInk)
+                                .foregroundColor(isMine ? CueTheme.redInk : CueTheme.ink(for: colorScheme))
                                 .clipShape(Capsule())
                                 .overlay(
                                     Capsule()

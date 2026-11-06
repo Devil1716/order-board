@@ -1,19 +1,10 @@
 import SwiftUI
 
-/// Brand design tokens extracted directly from `shared/css/styles.css`
+/// Brand design tokens with accessible, high-contrast dark and light modes.
 public struct CueTheme {
     // Brand primary red
     public static let red = Color(hex: "#e60023")
     public static let redInk = Color(hex: "#ffffff")
-
-    // Semantic palette tints (used for tiles, chips, secondary cards)
-    public static let p0 = Color(hex: "#f0d0d0")
-    public static let p1 = Color(hex: "#d8d8d8")
-    public static let p2 = Color(hex: "#cfcfcf")
-    public static let p3 = Color(hex: "#c4c4c4")
-    public static let p4 = Color(hex: "#bababa")
-    public static let p5 = Color(hex: "#e0d4d4")
-    public static let cardInk = Color(hex: "#1a1a1a") // --pi
 
     // Spacing scale
     public static let space1: CGFloat = 8
@@ -35,17 +26,19 @@ public struct CueTheme {
         public static let mute = Color(hex: "#666666")
         public static let card = Color(hex: "#ffffff")
         public static let line = Color(hex: "#d0d0d0")
-        public static let primaryInk = Color(hex: "#1a1a1a")
+        public static let tileBg = Color(hex: "#cfcfcf")
+        public static let readyTileBg = Color(hex: "#d8d8d8")
     }
 
-    // Dark mode palette
+    // Dark mode palette (designed for OLED black background with elevated readable cards)
     public struct Dark {
         public static let bg = Color(hex: "#0a0a0a")
-        public static let ink = Color(hex: "#f0f0f0")
-        public static let mute = Color(hex: "#8a8a8a")
-        public static let card = Color(hex: "#e0e0e0")
-        public static let line = Color(hex: "#c8c8c8")
-        public static let primaryInk = Color(hex: "#1a1a1a")
+        public static let ink = Color(hex: "#f4f4f6")
+        public static let mute = Color(hex: "#9c9ca4")
+        public static let card = Color(hex: "#18181b")
+        public static let line = Color(hex: "#2e2e34")
+        public static let tileBg = Color(hex: "#26262b")
+        public static let readyTileBg = Color(hex: "#2f2f35")
     }
 
     // Context-sensitive colors based on color scheme
@@ -67,5 +60,17 @@ public struct CueTheme {
 
     public static func line(for scheme: ColorScheme) -> Color {
         scheme == .dark ? Dark.line : Light.line
+    }
+
+    public static func tileBg(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Dark.tileBg : Light.tileBg
+    }
+
+    public static func readyTileBg(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Dark.readyTileBg : Light.readyTileBg
+    }
+
+    public static func cardInk(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Dark.ink : Light.ink
     }
 }

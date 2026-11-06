@@ -29,7 +29,7 @@ public struct StudentTrackingListView: View {
             VStack(spacing: 6) {
                 Text("Add another")
                     .font(.system(size: 18, weight: .heavy))
-                    .foregroundColor(CueTheme.cardInk)
+                    .foregroundColor(CueTheme.ink(for: colorScheme))
 
                 Text("Same counter, another token.")
                     .font(.system(size: 14, weight: .semibold))
@@ -106,11 +106,11 @@ public struct StudentTrackingListView: View {
             Text("\(token)")
                 .font(.system(size: 64, weight: .heavy, design: .rounded))
                 .monospacedDigit()
-                .foregroundColor(CueTheme.cardInk)
+                .foregroundColor(CueTheme.ink(for: colorScheme))
 
             Text(state.title)
                 .font(.system(size: 20, weight: .heavy))
-                .foregroundColor(state.isReady ? CueTheme.red : CueTheme.cardInk)
+                .foregroundColor(state.isReady ? CueTheme.red : CueTheme.ink(for: colorScheme))
 
             if !state.ageText.isEmpty {
                 Text(state.ageText)
@@ -146,7 +146,7 @@ public struct StudentTrackingListView: View {
                         .font(.system(size: 15, weight: .bold))
                         .frame(maxWidth: state.showCollect ? 120 : .infinity, minHeight: 48)
                         .background(CueTheme.bg(for: colorScheme))
-                        .foregroundColor(CueTheme.cardInk)
+                        .foregroundColor(CueTheme.ink(for: colorScheme))
                         .clipShape(Capsule())
                         .overlay(
                             Capsule()

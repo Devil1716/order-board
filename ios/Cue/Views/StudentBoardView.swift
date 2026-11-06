@@ -76,7 +76,7 @@ public struct StudentBoardView: View {
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
                                     .background(isMine ? CueTheme.ink(for: colorScheme) : CueTheme.card(for: colorScheme))
-                                    .foregroundColor(isMine ? CueTheme.bg(for: colorScheme) : CueTheme.cardInk)
+                                    .foregroundColor(isMine ? CueTheme.bg(for: colorScheme) : CueTheme.ink(for: colorScheme))
                                     .clipShape(Capsule())
                                     .overlay(
                                         Capsule()
@@ -107,15 +107,15 @@ public struct StudentBoardView: View {
                                 Text("\(order.token)")
                                     .font(.system(size: 36, weight: .heavy, design: .rounded))
                                     .monospacedDigit()
-                                    .foregroundColor(CueTheme.cardInk)
+                                    .foregroundColor(CueTheme.ink(for: colorScheme))
 
                                 Text(ageStr)
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(CueTheme.cardInk.opacity(0.7))
+                                    .foregroundColor(CueTheme.mute(for: colorScheme))
                             }
                             .padding(.vertical, 12)
                             .frame(maxWidth: .infinity)
-                            .background(CueTheme.p2)
+                            .background(CueTheme.tileBg(for: colorScheme))
                             .clipShape(RoundedRectangle(cornerRadius: 22))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 22)

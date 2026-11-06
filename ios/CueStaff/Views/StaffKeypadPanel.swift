@@ -110,13 +110,13 @@ public struct StaffKeypadPanel: View {
             VStack(spacing: 6) {
                 Text("Next number")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(CueTheme.cardInk)
+                    .foregroundColor(CueTheme.mute(for: colorScheme))
 
                 let suggestion = viewModel.nextTokenSuggestion
                 Text(suggestion > 0 ? "\(suggestion)" : "Full")
                     .font(.system(size: 52, weight: .heavy, design: .rounded))
                     .monospacedDigit()
-                    .foregroundColor(CueTheme.cardInk)
+                    .foregroundColor(CueTheme.ink(for: colorScheme))
                     .lineLimit(1)
 
                 Button {
@@ -136,13 +136,13 @@ public struct StaffKeypadPanel: View {
                 } label: {
                     Text("Restart at 1")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(CueTheme.cardInk.opacity(0.75))
+                        .foregroundColor(CueTheme.mute(for: colorScheme))
                         .underline()
                         .padding(.top, 4)
                 }
             }
             .padding(CueTheme.space3)
-            .background(CueTheme.p2)
+            .background(CueTheme.tileBg(for: colorScheme))
             .clipShape(RoundedRectangle(cornerRadius: CueTheme.radiusCard))
             .padding(.top, 8)
         }

@@ -42,7 +42,7 @@ public struct CueStudentHeaderView: View {
                     .padding(.horizontal, 14)
                     .frame(minHeight: 38)
                     .background(CueTheme.card(for: colorScheme))
-                    .foregroundColor(CueTheme.cardInk)
+                    .foregroundColor(CueTheme.ink(for: colorScheme))
                     .clipShape(Capsule())
                     .overlay(
                         Capsule()
@@ -58,7 +58,7 @@ public struct CueStudentHeaderView: View {
                     .font(.system(size: 13, weight: .bold))
                     .frame(width: 38, height: 38)
                     .background(soundService.isSoundEnabled ? CueTheme.ink(for: colorScheme) : CueTheme.card(for: colorScheme))
-                    .foregroundColor(soundService.isSoundEnabled ? CueTheme.bg(for: colorScheme) : CueTheme.cardInk)
+                    .foregroundColor(soundService.isSoundEnabled ? CueTheme.bg(for: colorScheme) : CueTheme.ink(for: colorScheme))
                     .clipShape(Circle())
                     .overlay(
                         Circle()
