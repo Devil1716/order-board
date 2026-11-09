@@ -5,13 +5,16 @@ public struct PinGateView: View {
     @ObservedObject var viewModel: CueStaffViewModel
     @State private var pin: String = ""
     @State private var errorMessage: String?
-    @State private var isSettingNewPin: Bool = !KeychainService.hasPin()
     @State private var confirmPin: String = ""
     @State private var step: Int = 1
     @Environment(\.colorScheme) private var colorScheme
 
     public init(viewModel: CueStaffViewModel) {
         self.viewModel = viewModel
+    }
+
+    private var isSettingNewPin: Bool {
+        !KeychainService.hasPin()
     }
 
     public var body: some View {
@@ -99,6 +102,12 @@ public struct PinGateView: View {
             }
             .padding(CueTheme.space3)
         }
+        .onAppear {
+            pin = ""
+            confirmPin = ""
+            step = 1
+            errorMessage = nil
+        }
     }
 
     private var currentInput: String {
@@ -157,6 +166,9 @@ public struct PinGateView: View {
         if pin == confirmPin {
             KeychainService.savePin(pin)
             HapticsService.success()
+            pin = ""
+            confirmPin = ""
+            step = 1
             viewModel.isUnlocked = true
         } else {
             HapticsService.buzz()

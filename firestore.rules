@@ -10,17 +10,14 @@ service cloud.firestore {
       // Validated write access:
       // 1. Token ID must be within range 1–150
       // 2. Only 't' (createdMs), 'r' (readyMs), 'c' (collectedMs) fields allowed
-      // 3. Field values must be valid non-negative numbers
+      // 3. Any field present must be a valid non-negative number
       // Note: The Staff PIN gate is client-side only. Client-side authentication / PIN
       // is not enforced at the Firestore rule level because students also mark collection.
       allow write: if token.matches('^([1-9]|[1-9][0-9]|1[0-4][0-9]|150)$')
                    && request.resource.data.keys().hasOnly(['t', 'r', 'c'])
-                   && request.resource.data.t is number
-                   && request.resource.data.t > 0
-                   && request.resource.data.r is number
-                   && request.resource.data.r >= 0
-                   && request.resource.data.c is number
-                   && request.resource.data.c >= 0;
+                   && (!('t' in request.resource.data) || (request.resource.data.t is number && request.resource.data.t >= 0))
+                   && (!('r' in request.resource.data) || (request.resource.data.r is number && request.resource.data.r >= 0))
+                   && (!('c' in request.resource.data) || (request.resource.data.c is number && request.resource.data.c >= 0));
     }
   }
 }

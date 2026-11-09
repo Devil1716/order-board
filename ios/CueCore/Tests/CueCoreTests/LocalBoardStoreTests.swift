@@ -103,4 +103,53 @@ final class LocalBoardStoreTests: XCTestCase {
         XCTAssertNil(store.find(token: 99))
         XCTAssertFalse(store.getOrders().contains(where: { $0.token == 99 }))
     }
+
+    func testTokenReplacementAndReuse() async throws {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+
+        // 1. Initial order for token 5
+        let o1 = try await store.write(token: 5, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+        XCTAssertEqual(o1.token, 5)
+        XCTAssertEqual(store.view().preparing.map(\.token), [5])
+
+        // 2. Mark ready and collected
+        _ = try await store.write(token: 5, fields: OrderWriteFields(readyMs: now + 5000))
+        _ = try await store.write(token: 5, fields: OrderWriteFields(collectedMs: now + 10000))
+        XCTAssertFalse(store.view().preparing.contains(where: { $0.token == 5 }))
+        XCTAssertFalse(store.view().ready.contains(where: { $0.token == 5 }))
+
+        // 3. Replace token 5 with a new order
+        let newTime = now + 60000
+        let o2 = try await store.write(token: 5, fields: OrderWriteFields(createdMs: newTime))
+        XCTAssertEqual(o2.createdMs, newTime)
+        XCTAssertEqual(o2.readyMs, 0, "Replacement must reset readyMs to 0")
+        XCTAssertEqual(o2.collectedMs, 0, "Replacement must reset collectedMs to 0")
+
+        // 4. Token 5 is back in preparing queue
+        let view = store.view()
+        XCTAssertTrue(view.preparing.contains(where: { $0.token == 5 }))
+        XCTAssertFalse(view.ready.contains(where: { $0.token == 5 }))
+    }
+
+    func testKeychainServicePinFlow() {
+        KeychainService.deletePin()
+        XCTAssertFalse(KeychainService.hasPin())
+
+        XCTAssertTrue(KeychainService.savePin("1234"))
+        XCTAssertTrue(KeychainService.hasPin())
+        XCTAssertEqual(KeychainService.getPin(), "1234")
+        XCTAssertTrue(KeychainService.verifyPin("1234"))
+        XCTAssertFalse(KeychainService.verifyPin("9999"))
+
+        // Update PIN
+        XCTAssertTrue(KeychainService.savePin("5678"))
+        XCTAssertEqual(KeychainService.getPin(), "5678")
+        XCTAssertTrue(KeychainService.verifyPin("5678"))
+
+        // Cleanup
+        KeychainService.deletePin()
+        XCTAssertFalse(KeychainService.hasPin())
+        XCTAssertNil(KeychainService.getPin())
+    }
 }
