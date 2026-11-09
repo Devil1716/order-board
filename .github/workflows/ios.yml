@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ios-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -131,11 +131,8 @@ jobs:
   signing-gate:
     name: Check Apple signing secrets
     runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.probe.outputs.ready }}
     steps:
       - name: Probe secrets
-        id: probe
         env:
           CERT: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
           CERT_PASS: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
@@ -143,19 +140,7 @@ jobs:
           TEAM: ${{ secrets.IOS_TEAM_ID }}
         run: |
           if [ -n "$CERT" ] && [ -n "$CERT_PASS" ] && [ -n "$PROFILE" ] && [ -n "$TEAM" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "Apple signing secrets are present."
+            echo "::notice title=Device Signing::Apple signing secrets are present. Extend this job to export signed IPAs once per-app provisioning profiles are added."
           else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Device IPA skipped::Apple signing secrets are not set. Simulator builds for Student + Staff still run. See README."
           fi
-
-  device-ipa-notice:
-    name: Device IPA (needs certs per app)
-    runs-on: ubuntu-latest
-    needs: [simulator, signing-gate]
-    if: needs.signing-gate.outputs.ready == 'true'
-    steps:
-      - name: Notice
-        run: |
-          echo "::notice title=Device IPA::Signing secrets exist, but this monorepo needs separate provisioning profiles for in.sharan.orderboard and in.sharan.orderboard.staff. Extend the workflow once both profiles are available."
