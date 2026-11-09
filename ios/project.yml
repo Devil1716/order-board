@@ -8,6 +8,7 @@ settings:
   base:
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
 
 packages:
   CueCore:
@@ -25,6 +26,7 @@ targets:
         product: CueCore
     postBuildScripts:
       - name: Copy Firebase Config if Present
+        basedOnDependencyAnalysis: false
         script: |
           if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
             cp "${SRCROOT}/GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
@@ -33,6 +35,8 @@ targets:
           fi
     settings:
       base:
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard
         PRODUCT_NAME: Cue
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -56,6 +60,7 @@ targets:
         product: CueCore
     postBuildScripts:
       - name: Copy Firebase Config if Present
+        basedOnDependencyAnalysis: false
         script: |
           if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
             cp "${SRCROOT}/GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
@@ -64,6 +69,8 @@ targets:
           fi
     settings:
       base:
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard.staff
         PRODUCT_NAME: CueStaff
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -87,6 +94,7 @@ targets:
     settings:
       base:
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard.CueCoreTests
         PRODUCT_NAME: CueCoreTests
         GENERATE_INFOPLIST_FILE: YES

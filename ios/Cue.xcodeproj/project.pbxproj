@@ -47,7 +47,7 @@
 		562040BE56F3D806E2948FA4 /* FullScreenAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenAlertView.swift; sourceTree = "<group>"; };
 		6680D6F265E89853770C4C70 /* CueStaffContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStaffContentView.swift; sourceTree = "<group>"; };
 		6C25B754FBF1164405B509B9 /* CueStaffApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStaffApp.swift; sourceTree = "<group>"; };
-		6E55D9E0F8198923EEBD3D31 /* Cue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6E55D9E0F8198923EEBD3D31 /* Cue.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6F415D05D34259C02FFDD209 /* TokenRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenRulesTests.swift; sourceTree = "<group>"; };
 		8111CF3E19369245C392781C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		86D45245E1F3C5C8AEEC58F2 /* CueStudentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStudentViewModel.swift; sourceTree = "<group>"; };
@@ -56,13 +56,13 @@
 		9DD351861F07BE85CEB809FB /* StudentEmptyEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentEmptyEntryView.swift; sourceTree = "<group>"; };
 		A6460F04B404508222BBFB7B /* PinSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinSettingsSheet.swift; sourceTree = "<group>"; };
 		B390152A4678E6285B2376E8 /* PinGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinGateView.swift; sourceTree = "<group>"; };
-		B94CB3A7C5F0F7A4FA2DF230 /* CueCore */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CueCore; sourceTree = SOURCE_ROOT; };
+		B94CB3A7C5F0F7A4FA2DF230 /* CueCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CueCore; path = CueCore; sourceTree = SOURCE_ROOT; };
 		C96A84720919C759B00FCC66 /* CueStudentHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStudentHeaderView.swift; sourceTree = "<group>"; };
 		C9CBFA6B6C30326539006AEB /* CueApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueApp.swift; sourceTree = "<group>"; };
-		CA1EB334D0E3F41AE2F2D411 /* CueStaff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CueStaff.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA1EB334D0E3F41AE2F2D411 /* CueStaff.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CueStaff.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0D648D5879DF56CC4A7CD6C /* StudentReadyStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentReadyStripView.swift; sourceTree = "<group>"; };
 		F646F2D6E2C7A94F48368EAF /* CueStudentContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStudentContentView.swift; sourceTree = "<group>"; };
-		FFD6B3C4D9674B913631AFED /* CueCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CueCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FFD6B3C4D9674B913631AFED /* CueCoreTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CueCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -269,7 +269,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2720;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					633C62679D75DCE6F0007FB2 = {
 						DevelopmentTeam = "";
@@ -325,6 +325,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		64EE47F9F0AE80F7C98532B5 /* Copy Firebase Config if Present */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -343,6 +344,7 @@
 		};
 		7869703CBA402DCAA373FCD1 /* Copy Firebase Config if Present */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -411,6 +413,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -431,6 +434,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Cue Staff";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -455,6 +459,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Cue Staff";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -479,6 +484,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Cue;
 				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "Cue notifies you when your order is ready for pickup.";
@@ -535,7 +541,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -549,7 +555,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -560,6 +565,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -580,6 +586,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Cue;
 				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "Cue notifies you when your order is ready for pickup.";
@@ -636,7 +643,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -657,7 +664,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;

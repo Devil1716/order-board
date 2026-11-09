@@ -6,7 +6,9 @@ public enum KeychainService {
     private static let pinAccount = "staff_pin"
     private static let pinEnabledKey = "ob_staff_pin_enabled"
     private static let onboardingCompletedKey = "ob_staff_pin_onboarding_completed"
-    private static let pinBackupKey = "ob_staff_pin_backup"
+    #if targetEnvironment(simulator)
+    private static let pinBackupKey = "ob_staff_pin_simulator_backup"
+    #endif
 
     /// Tracks whether the staff PIN onboarding (set/confirm/skip) has been completed
     public static var hasCompletedOnboarding: Bool {
@@ -35,11 +37,6 @@ public enum KeychainService {
     public static func savePin(_ pin: String) -> Bool {
         guard let data = pin.data(using: .utf8) else { return false }
 
-        // Always save to backup key to ensure reliability in Simulator sandbox
-        UserDefaults.standard.set(pin, forKey: pinBackupKey)
-        isPinEnabled = true
-        hasCompletedOnboarding = true
-
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
@@ -51,26 +48,53 @@ public enum KeychainService {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
 
-        // Try updating first
+        // 1. Try updating existing Keychain item
         let updateStatus = SecItemUpdate(query as CFDictionary, updateAttributes as CFDictionary)
         if updateStatus == errSecSuccess {
+            isPinEnabled = true
+            hasCompletedOnboarding = true
+            #if targetEnvironment(simulator)
+            UserDefaults.standard.removeObject(forKey: pinBackupKey)
+            #endif
             return true
         }
 
-        // If not found, add it
+        // 2. If item does not exist yet, add it
         var addQuery = query
         addQuery[kSecValueData as String] = data
         addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
 
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         if addStatus == errSecSuccess {
+            isPinEnabled = true
+            hasCompletedOnboarding = true
+            #if targetEnvironment(simulator)
+            UserDefaults.standard.removeObject(forKey: pinBackupKey)
+            #endif
             return true
         } else if addStatus == errSecDuplicateItem {
             SecItemDelete(query as CFDictionary)
-            return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
+            let retryStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if retryStatus == errSecSuccess {
+                isPinEnabled = true
+                hasCompletedOnboarding = true
+                #if targetEnvironment(simulator)
+                UserDefaults.standard.removeObject(forKey: pinBackupKey)
+                #endif
+                return true
+            }
         }
 
-        return true // Saved to persistent store
+        #if targetEnvironment(simulator)
+        // In unentitled simulator sandbox environments only, fallback to local storage
+        UserDefaults.standard.set(pin, forKey: pinBackupKey)
+        isPinEnabled = true
+        hasCompletedOnboarding = true
+        return true
+        #else
+        // On physical production devices, Keychain failure is not masked by plaintext storage
+        return false
+        #endif
     }
 
     public static func getPin() -> String? {
@@ -88,17 +112,20 @@ public enum KeychainService {
             return pin
         }
 
-        // Fallback to local persistent backup if keychain returns param error or missing entitlement (e.g. simulator)
+        #if targetEnvironment(simulator)
         if let backupPin = UserDefaults.standard.string(forKey: pinBackupKey), !backupPin.isEmpty {
             return backupPin
         }
+        #endif
 
         return nil
     }
 
     @discardableResult
     public static func deletePin() -> Bool {
+        #if targetEnvironment(simulator)
         UserDefaults.standard.removeObject(forKey: pinBackupKey)
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
