@@ -86,6 +86,7 @@ targets:
         product: CueCore
     settings:
       base:
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard.CueCoreTests
         PRODUCT_NAME: CueCoreTests
         GENERATE_INFOPLIST_FILE: YES
