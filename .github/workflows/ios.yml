@@ -22,13 +22,13 @@ jobs:
       - name: Run CueCore Unit Tests
         run: |
           set -euo pipefail
-          DEVICE_DEST=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([A-F0-9-]+)\).*/id=\1/' || true)
-          if [ -z "$DEVICE_DEST" ]; then
+          DEVICE_ID=$(xcodebuild -workspace ios/Cue.xcworkspace -scheme CueCoreTests -showdestinations 2>/dev/null | grep "platform:iOS Simulator" | grep -m 1 -oE 'id:[A-F0-9-]+' | cut -d: -f2 || true)
+          if [ -n "$DEVICE_ID" ]; then
+            DEST="id=$DEVICE_ID"
+            ACTION="test"
+          else
             DEST="generic/platform=iOS Simulator"
             ACTION="build-for-testing"
-          else
-            DEST="platform=iOS Simulator,$DEVICE_DEST"
-            ACTION="test"
           fi
           echo "Testing with destination: $DEST"
           xcodebuild \
