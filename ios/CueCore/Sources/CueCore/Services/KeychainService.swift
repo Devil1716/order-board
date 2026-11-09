@@ -6,6 +6,9 @@ public enum KeychainService {
     private static let pinAccount = "staff_pin"
     private static let pinEnabledKey = "ob_staff_pin_enabled"
     private static let onboardingCompletedKey = "ob_staff_pin_onboarding_completed"
+    #if targetEnvironment(simulator)
+    private static let pinBackupKey = "ob_staff_pin_simulator_backup"
+    #endif
 
     /// Tracks whether the staff PIN onboarding (set/confirm/skip) has been completed
     public static var hasCompletedOnboarding: Bool {
@@ -40,35 +43,58 @@ public enum KeychainService {
             kSecAttrAccount as String: pinAccount
         ]
 
-        // Check if an item already exists
-        let matchStatus = SecItemCopyMatching(query as CFDictionary, nil)
-        if matchStatus == errSecSuccess {
-            // Update existing without deleting first, preserving old PIN if update fails
-            let updateAttributes: [String: Any] = [
-                kSecValueData as String: data,
-                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-            ]
-            let updateStatus = SecItemUpdate(query as CFDictionary, updateAttributes as CFDictionary)
-            if updateStatus == errSecSuccess {
-                isPinEnabled = true
-                hasCompletedOnboarding = true
-                return true
-            }
-            return false
-        } else {
-            // Add new item
-            var addQuery = query
-            addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        let updateAttributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
 
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            if addStatus == errSecSuccess {
+        // 1. Try updating existing Keychain item
+        let updateStatus = SecItemUpdate(query as CFDictionary, updateAttributes as CFDictionary)
+        if updateStatus == errSecSuccess {
+            isPinEnabled = true
+            hasCompletedOnboarding = true
+            #if targetEnvironment(simulator)
+            UserDefaults.standard.removeObject(forKey: pinBackupKey)
+            #endif
+            return true
+        }
+
+        // 2. If item does not exist yet, add it
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        if addStatus == errSecSuccess {
+            isPinEnabled = true
+            hasCompletedOnboarding = true
+            #if targetEnvironment(simulator)
+            UserDefaults.standard.removeObject(forKey: pinBackupKey)
+            #endif
+            return true
+        } else if addStatus == errSecDuplicateItem {
+            SecItemDelete(query as CFDictionary)
+            let retryStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if retryStatus == errSecSuccess {
                 isPinEnabled = true
                 hasCompletedOnboarding = true
+                #if targetEnvironment(simulator)
+                UserDefaults.standard.removeObject(forKey: pinBackupKey)
+                #endif
                 return true
             }
-            return false
         }
+
+        #if targetEnvironment(simulator)
+        // In unentitled simulator sandbox environments only, fallback to local storage
+        UserDefaults.standard.set(pin, forKey: pinBackupKey)
+        isPinEnabled = true
+        hasCompletedOnboarding = true
+        return true
+        #else
+        // On physical production devices, Keychain failure is not masked by plaintext storage
+        return false
+        #endif
     }
 
     public static func getPin() -> String? {
@@ -76,20 +102,30 @@ public enum KeychainService {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: pinAccount,
-            kSecReturnData as String: true,
+            kSecReturnData as String: kCFBooleanTrue as Any,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else {
-            return nil
+        if status == errSecSuccess, let data = item as? Data, let pin = String(data: data, encoding: .utf8), !pin.isEmpty {
+            return pin
         }
-        return String(data: data, encoding: .utf8)
+
+        #if targetEnvironment(simulator)
+        if let backupPin = UserDefaults.standard.string(forKey: pinBackupKey), !backupPin.isEmpty {
+            return backupPin
+        }
+        #endif
+
+        return nil
     }
 
     @discardableResult
     public static func deletePin() -> Bool {
+        #if targetEnvironment(simulator)
+        UserDefaults.standard.removeObject(forKey: pinBackupKey)
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,

@@ -107,9 +107,15 @@ public class LocalBoardStore: BoardStore {
                 orders.append(newOrder)
                 existing = newOrder
             } else if let index = orders.firstIndex(where: { $0.token == token }) {
-                if let c = fields.createdMs { orders[index].createdMs = c }
-                if let r = fields.readyMs { orders[index].readyMs = r }
-                if let col = fields.collectedMs { orders[index].collectedMs = col }
+                if let newCreated = fields.createdMs {
+                    // Token replacement: reset ready and collected timestamps for clean reuse
+                    orders[index].createdMs = newCreated
+                    orders[index].readyMs = fields.readyMs ?? 0
+                    orders[index].collectedMs = fields.collectedMs ?? 0
+                } else {
+                    if let r = fields.readyMs { orders[index].readyMs = r }
+                    if let col = fields.collectedMs { orders[index].collectedMs = col }
+                }
                 existing = orders[index]
             }
 

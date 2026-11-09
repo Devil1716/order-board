@@ -95,30 +95,27 @@ public class FirestoreBoardStore: BoardStore {
     @discardableResult
     public func write(token: Int, fields: OrderWriteFields) async throws -> Order {
         // 1. Optimistically update local store immediately for instant UI progress
-        let isNewOrder = (localStore.find(token: token) == nil)
+        let isReplacementOrNew = (fields.createdMs != nil) || (localStore.find(token: token) == nil)
         let localOrder = localStore.writeSync(token: token, fields: fields)
         ordersSubject.send(localStore.getOrders())
 
-        // 2. Build payload updating ONLY the explicitly supplied fields
+        // 2. Build payload
         let docRef = db.collection("orders").document(String(token))
         var data: [String: Any] = [:]
 
         if let t = fields.createdMs {
+            // New order or token replacement: reset ready and collected timestamps
             data["t"] = t
-        } else if isNewOrder {
+            data["r"] = fields.readyMs ?? Int64(0)
+            data["c"] = fields.collectedMs ?? Int64(0)
+        } else if isReplacementOrNew {
             data["t"] = localOrder.createdMs
-        }
-
-        if let r = fields.readyMs {
-            data["r"] = r
-        } else if isNewOrder {
-            data["r"] = Int64(0)
-        }
-
-        if let c = fields.collectedMs {
-            data["c"] = c
-        } else if isNewOrder {
-            data["c"] = Int64(0)
+            data["r"] = localOrder.readyMs
+            data["c"] = localOrder.collectedMs
+        } else {
+            // Partial status update for existing active order
+            if let r = fields.readyMs { data["r"] = r }
+            if let c = fields.collectedMs { data["c"] = c }
         }
 
         // 3. Dispatch to Firestore in background without blocking local UI execution
