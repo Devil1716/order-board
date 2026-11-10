@@ -14,7 +14,7 @@ public struct PinGateView: View {
     }
 
     private var isSettingNewPin: Bool {
-        !KeychainService.hasPin()
+        !KeychainService.hasCompletedOnboarding && !KeychainService.isPinEnabled
     }
 
     public var body: some View {
