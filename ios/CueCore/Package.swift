@@ -16,6 +16,10 @@ let package = Package(
     ],
     dependencies: [
         .package(
+            url: "https://github.com/apple/swift-protobuf.git",
+            "1.26.0"..<"1.29.0"
+        ),
+        .package(
             url: "https://github.com/firebase/firebase-ios-sdk.git",
             .upToNextMajor(from: "10.20.0")
         )

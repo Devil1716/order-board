@@ -140,7 +140,7 @@ public enum KeychainService {
     }
 
     public static func verifyPin(_ pin: String) -> Bool {
-        guard let saved = getPin() else { return true }
+        guard let saved = getPin() else { return false }
         return saved == pin
     }
 }

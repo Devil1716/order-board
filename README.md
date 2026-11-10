@@ -82,7 +82,8 @@ firebase deploy --only firestore:rules
 
 ## Native iOS Build & Run
 
-Requires macOS with Xcode 15+ (Swift 5.9+), targeting iOS 16.0+.
+Requires macOS with Xcode 15+ (Swift 5.9+ through Swift 6+), targeting iOS 16.0+.
+`SwiftProtobuf` is pinned to `< 1.29.0` for full backwards compatibility with Xcode 15 and Swift 5.9 toolchains.
 
 ### Open in Xcode
 ```bash

@@ -164,12 +164,19 @@ public struct PinGateView: View {
 
     private func handleStep2Completed() {
         if pin == confirmPin {
-            KeychainService.savePin(pin)
-            HapticsService.success()
-            pin = ""
-            confirmPin = ""
-            step = 1
-            viewModel.isUnlocked = true
+            if KeychainService.savePin(pin) {
+                HapticsService.success()
+                pin = ""
+                confirmPin = ""
+                step = 1
+                viewModel.isUnlocked = true
+            } else {
+                HapticsService.buzz()
+                errorMessage = "Failed to save PIN securely. Please try again."
+                pin = ""
+                confirmPin = ""
+                step = 1
+            }
         } else {
             HapticsService.buzz()
             errorMessage = "PINs do not match. Try again."

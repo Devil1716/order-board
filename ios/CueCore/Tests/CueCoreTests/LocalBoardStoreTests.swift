@@ -135,6 +135,7 @@ final class LocalBoardStoreTests: XCTestCase {
     func testKeychainServicePinFlow() {
         KeychainService.deletePin()
         XCTAssertFalse(KeychainService.hasPin())
+        XCTAssertFalse(KeychainService.verifyPin("1234"), "Must not unlock when no PIN is set")
 
         XCTAssertTrue(KeychainService.savePin("1234"))
         XCTAssertTrue(KeychainService.hasPin())
@@ -151,5 +152,18 @@ final class LocalBoardStoreTests: XCTestCase {
         KeychainService.deletePin()
         XCTAssertFalse(KeychainService.hasPin())
         XCTAssertNil(KeychainService.getPin())
+        XCTAssertFalse(KeychainService.verifyPin("5678"), "Must not unlock after deletion")
+    }
+
+    func testIssueNextTokenAtomic() async throws {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        await store.setNextStart(10)
+        let t1 = try await store.issueNextToken()
+        XCTAssertEqual(t1, 10)
+        XCTAssertTrue(store.view().preparing.contains(where: { $0.token == 10 }))
+
+        let t2 = try await store.issueNextToken()
+        XCTAssertEqual(t2, 11)
+        XCTAssertTrue(store.view().preparing.contains(where: { $0.token == 11 }))
     }
 }

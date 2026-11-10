@@ -33,9 +33,13 @@ public protocol BoardStore: AnyObject {
     func addTrackedToken(_ token: Int) async -> [Int]
     func removeTrackedToken(_ token: Int) async -> [Int]
 
-    // MARK: - Staff next token recommendation
+    // MARK: - Staff next token recommendation & reservation
     func getNextStart() async -> Int
     func setNextStart(_ token: Int) async
+
+    /// Atomically reserves and creates the next available order token (1–150).
+    /// Prevents two staff devices from issuing the same token via Firestore atomic transactions.
+    func issueNextToken() async throws -> Int
 }
 
 public extension BoardStore {

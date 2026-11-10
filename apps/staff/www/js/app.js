@@ -177,13 +177,26 @@
   function press(k) {
     if (k === 'Clear') typed = '';
     else if (k === 'Delete') typed = typed.slice(0, -1);
-    else if (typed.length < 4) typed = (typed + k).replace(/^0+(?=\d)/, '');
+    else if (typed.length < 3) {
+      var cand = (typed + k).replace(/^0+(?=\d)/, '');
+      var num = parseInt(cand, 10);
+      if (!isNaN(num) && num <= POOL) typed = cand;
+      else if (!isNaN(num) && num > POOL) {
+        toast('Token range is 1 to ' + POOL);
+      }
+    }
     render();
   }
 
   function act() {
     var n = parseInt(typed, 10);
     if (!n) return;
+    if (n < 1 || n > POOL) {
+      toast('Token must be between 1 and ' + POOL);
+      typed = '';
+      render();
+      return;
+    }
     var m = modeOf(n);
     typed = '';
     if (m === 'prep') callReady(n);
@@ -196,7 +209,7 @@
 
   function remHand() {
     var n = parseInt(typed, 10);
-    if (!n) return;
+    if (!n || n < 1 || n > POOL) return;
     typed = '';
     handOver(n);
   }

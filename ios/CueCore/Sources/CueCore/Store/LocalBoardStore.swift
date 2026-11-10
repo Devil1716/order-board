@@ -206,6 +206,18 @@ public class LocalBoardStore: BoardStore {
         let safeVal = token > TokenRules.maxToken ? 1 : token
         userDefaults.set(safeVal, forKey: nextKey)
     }
+
+    public func issueNextToken() async throws -> Int {
+        let start = await getNextStart()
+        let available = TokenRules.nextAvailableToken(currentOrders: getOrders(), start: start)
+        guard available > 0 else {
+            throw NSError(domain: "Cue", code: 409, userInfo: [NSLocalizedDescriptionKey: "All \(TokenRules.maxToken) tokens are in use"])
+        }
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        _ = writeSync(token: available, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+        await setNextStart((available % TokenRules.maxToken) + 1)
+        return available
+    }
 }
 
 private extension JSONDecoder {

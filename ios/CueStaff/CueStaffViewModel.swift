@@ -36,7 +36,8 @@ public class CueStaffViewModel: ObservableObject {
         // Check if PIN gate is active or onboarding needs to be shown
         if !KeychainService.hasCompletedOnboarding {
             self.isUnlocked = false
-        } else if KeychainService.isPinEnabled && KeychainService.hasPin() {
+        } else if KeychainService.isPinEnabled {
+            // Stay locked whenever PIN protection is enabled (never unlock on read failure)
             self.isUnlocked = false
         } else {
             self.isUnlocked = true
@@ -194,23 +195,18 @@ public class CueStaffViewModel: ObservableObject {
     }
 
     public func giveNextToken() {
-        let n = nextTokenSuggestion
-        guard n > 0 else {
-            showToast("All \(TokenRules.maxToken) tokens are in use", undo: nil)
-            return
-        }
-
         HapticsService.impact()
         Task { [weak self] in
             guard let self = self else { return }
-            let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await self.store.write(token: n, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
-            let prevNext = self.nextStart
-            await self.store.setNextStart(n + 1)
-            self.nextStart = n + 1 > TokenRules.maxToken ? 1 : n + 1
-
-            self.showToast("Give customer token \(n)") { [weak self] in
-                self?.undoGiveNextToken(n, prevNext: prevNext)
+            do {
+                let prevNext = self.nextStart
+                let n = try await self.store.issueNextToken()
+                self.nextStart = (n % TokenRules.maxToken) + 1
+                self.showToast("Give customer token \(n)") { [weak self] in
+                    self?.undoGiveNextToken(n, prevNext: prevNext)
+                }
+            } catch {
+                self.showToast(error.localizedDescription, undo: nil)
             }
         }
     }
