@@ -44,14 +44,14 @@ Student and Staff share a board when **Firebase Firestore** is configured. Witho
 
 ### 1. Firestore Data Schema
 - **Collection**: `orders`
-- **Document ID**: Token number as string (`"1"` through `"150"`)
+- **Document ID**: Token number as string (`"1"` through `"200"`)
 - **Fields**:
   - `t` (number): Epoch timestamp (ms) when order was created
   - `r` (number): Epoch timestamp (ms) when marked ready (or `0` if preparing)
   - `c` (number): Epoch timestamp (ms) when collected / handed over (or `0`)
 
 ### 2. Business Rules
-- **Token range**: 1–150 (tokens are reused as orders are completed).
+- **Token range**: 1–200 (tokens are reused as orders are completed).
 - **Ready expiry**: A ready order expires **20 minutes** after `r`.
 - **Stale order pruning**: Orders older than **4 hours** (based on `t`) are ignored and pruned.
 - **Derived status**:
@@ -160,7 +160,7 @@ xcodegen generate --spec ios/project.yml --project ios
 ## Features & Behavior
 
 ### Cue (Student App)
-- **Token entry**: Clean numeric input validating 1–150.
+- **Token entry**: Clean numeric input validating 1–200.
 - **Multi-order tracking**: Track one or multiple tokens simultaneously with status badges ("You're next", "Preparing: X orders ahead", "Ready", "Collected", "Timed out").
 - **View Switcher**: Toggle between **My Orders** (user-centric cards + compact "What's ready" strip) and **Board View** (hero card for latest ready token + ready grid + preparing bar).
 - **Full-screen ready alert**: Pops up when a tracked order becomes ready with sound chime (880Hz + 1175Hz), haptic vibration pattern, and background local notification.

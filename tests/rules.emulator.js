@@ -123,3 +123,13 @@ test('counter documents stay staff-writable (iOS issue transaction)', async () =
   assert.ok((await call(staff.token, 'PATCH', 'counters/token_counter', { next: 2, version: 1, updatedAt: now })).ok);
   assert.equal((await call(null, 'PATCH', 'counters/token_counter', { next: 9, version: 9, updatedAt: now })).ok, false);
 });
+
+test('token ids are 1–200: 200 is accepted, 0 and 201 are refused', async () => {
+  const now = Date.now();
+  assert.ok((await call(staff.token, 'PATCH', 'orders/150', { t: now, r: 0, c: 0 })).ok, '150');
+  assert.ok((await call(staff.token, 'PATCH', 'orders/151', { t: now, r: 0, c: 0 })).ok, '151');
+  assert.ok((await call(staff.token, 'PATCH', 'orders/200', { t: now, r: 0, c: 0 })).ok, '200');
+  assert.equal((await call(staff.token, 'PATCH', 'orders/201', { t: now, r: 0, c: 0 })).ok, false, '201');
+  assert.equal((await call(staff.token, 'PATCH', 'orders/0', { t: now, r: 0, c: 0 })).ok, false, '0');
+  assert.equal((await call(staff.token, 'PATCH', 'orders/2000', { t: now, r: 0, c: 0 })).ok, false, '2000');
+});

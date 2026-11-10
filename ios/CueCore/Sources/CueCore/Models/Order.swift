@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents a single order token matching the Firestore data shape `{ t, r, c }`.
-/// - `token`: The token number (1–150). Firestore doc ID is `String(token)`.
+/// - `token`: The token number (1–200). Firestore doc ID is `String(token)`.
 /// - `createdMs`: Epoch timestamp in ms when the order was created (`t`).
 /// - `readyMs`: Epoch timestamp in ms when marked ready (`r`), or 0 if preparing.
 /// - `collectedMs`: Epoch timestamp in ms when handed over (`c`), or 0 if not collected.

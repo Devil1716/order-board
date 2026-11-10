@@ -26,21 +26,21 @@ service cloud.firestore {
     }
 
     // Orders collection for Cue restaurant token board
-    // Documents are keyed by token number ("1" through "150")
+    // Documents are keyed by token number ("1" through "200")
     match /orders/{token} {
       // Open read access so student & counter boards can listen to realtime updates
       allow read: if true;
 
       // Staff-only creation of orders with valid positive creation timestamp 't'
       allow create: if isStaff()
-                    && token.matches('^([1-9]|[1-9][0-9]|1[0-4][0-9]|150)$')
+                    && token.matches('^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$')
                     && request.resource.data.keys().hasOnly(['t', 'r', 'c'])
                     && ('t' in request.resource.data && request.resource.data.t is number && request.resource.data.t > 0 && request.resource.data.t <= request.time.toMillis() + 60000)
                     && (!('r' in request.resource.data) || isValidTimestamp(request.resource.data.r))
                     && (!('c' in request.resource.data) || isValidTimestamp(request.resource.data.c));
 
       // Updates: either staff updating any allowed field, OR student marking collection on active ready orders
-      allow update: if token.matches('^([1-9]|[1-9][0-9]|1[0-4][0-9]|150)$')
+      allow update: if token.matches('^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$')
                     && request.resource.data.keys().hasOnly(['t', 'r', 'c'])
                     && (
                       // Case A: Staff update (mark ready, cancel, hand over, re-issue)

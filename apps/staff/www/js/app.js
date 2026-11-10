@@ -1,6 +1,6 @@
 (function () {
   var EXP = 20;
-  var POOL = 150;
+  var POOL = 200;
   var snd = false, ac = null;
   var undoFn = null, toastT = null;
   var typed = '', showAllP = false, showAllR = false;

@@ -85,8 +85,8 @@ final class LocalBoardStoreTests: XCTestCase {
         let updated = try await store.getNextStart()
         XCTAssertEqual(updated, 50)
 
-        // Wrap around when setting > 150
-        try await store.setNextStart(151)
+        // Wrap around when setting > 200
+        try await store.setNextStart(201)
         let wrapped = try await store.getNextStart()
         XCTAssertEqual(wrapped, 1)
     }
