@@ -62,7 +62,7 @@ final class LocalBoardStoreTests: XCTestCase {
         XCTAssertEqual(dup, [7, 21])
 
         // Out of range token rejected
-        let invalid = await store.addTrackedToken(200)
+        let invalid = await store.addTrackedToken(201)
         XCTAssertEqual(invalid, [7, 21])
 
         // Remove token
