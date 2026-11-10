@@ -2,14 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Staff authorization helper:
-    // Requires authenticated user with custom claim 'staff: true', role 'staff',
-    // or an authenticated staff account (non-anonymous).
+    // Staff accounts are provisioned by an administrator with a trusted claim.
     function isStaff() {
       return request.auth != null && (
         request.auth.token.staff == true ||
-        request.auth.token.role == 'staff' ||
-        (request.auth.token.firebase.sign_in_provider != 'anonymous' && request.auth.uid != null)
+        request.auth.token.role == 'staff'
       );
     }
 

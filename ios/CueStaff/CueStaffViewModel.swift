@@ -25,6 +25,9 @@ public class CueStaffViewModel: ObservableObject {
     // PIN Gate state
     @Published public var isUnlocked: Bool = false
     @Published public var showPinSettings: Bool = false
+    @Published public var staffEmail: String?
+    @Published public var signInError: String?
+    @Published public var isSigningIn: Bool = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -67,6 +70,11 @@ public class CueStaffViewModel: ObservableObject {
 
         Task {
             self.nextStart = await store.getNextStart()
+            do {
+                self.staffEmail = try await StoreFactory.currentStaffEmail()
+            } catch {
+                self.signInError = error.localizedDescription
+            }
         }
     }
 
@@ -290,5 +298,30 @@ public class CueStaffViewModel: ObservableObject {
             return true
         }
         return false
+    }
+
+    public var requiresStaffSignIn: Bool {
+        StoreFactory.hasFirebaseConfig() && staffEmail == nil
+    }
+
+    public func signInStaff(email: String, password: String) async {
+        isSigningIn = true
+        signInError = nil
+        defer { isSigningIn = false }
+        do {
+            staffEmail = try await StoreFactory.signInStaff(email: email, password: password)
+        } catch {
+            signInError = error.localizedDescription
+        }
+    }
+
+    public func signOutStaff() {
+        do {
+            try StoreFactory.signOutStaff()
+            staffEmail = nil
+            isUnlocked = false
+        } catch {
+            signInError = error.localizedDescription
+        }
     }
 }

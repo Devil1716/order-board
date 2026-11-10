@@ -11,7 +11,9 @@ public struct CueStaffContentView: View {
 
     public var body: some View {
         Group {
-            if !viewModel.isUnlocked {
+            if viewModel.requiresStaffSignIn {
+                StaffSignInView(viewModel: viewModel)
+            } else if !viewModel.isUnlocked {
                 PinGateView(viewModel: viewModel)
             } else {
                 mainContent

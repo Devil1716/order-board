@@ -19,6 +19,7 @@
 		8EB062A1F6EEAB1C69E499DA /* StudentTrackingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392829B9870C8878C5A4BB5A /* StudentTrackingListView.swift */; };
 		91935C300F7FF4AC4324349D /* StaffTilesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3742A51413D2DFE18D9389 /* StaffTilesPanel.swift */; };
 		9336BD3540A9D65A14F017EC /* CueStaffContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6680D6F265E89853770C4C70 /* CueStaffContentView.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* StaffSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* StaffSignInView.swift */; };
 		AE2FBA63EFF888C21487D13F /* CueApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9CBFA6B6C30326539006AEB /* CueApp.swift */; };
 		B2BEF0003E4AED90C31B3DB3 /* FullScreenAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562040BE56F3D806E2948FA4 /* FullScreenAlertView.swift */; };
 		B831032C883CDAD9D76671BF /* PinSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6460F04B404508222BBFB7B /* PinSettingsSheet.swift */; };
@@ -46,6 +47,7 @@
 		53A5D7FAC861C1D3BA5238E0 /* ToastOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastOverlayView.swift; sourceTree = "<group>"; };
 		562040BE56F3D806E2948FA4 /* FullScreenAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenAlertView.swift; sourceTree = "<group>"; };
 		6680D6F265E89853770C4C70 /* CueStaffContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStaffContentView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* StaffSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaffSignInView.swift; sourceTree = "<group>"; };
 		6C25B754FBF1164405B509B9 /* CueStaffApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStaffApp.swift; sourceTree = "<group>"; };
 		6E55D9E0F8198923EEBD3D31 /* Cue.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6F415D05D34259C02FFDD209 /* TokenRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenRulesTests.swift; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 				A6460F04B404508222BBFB7B /* PinSettingsSheet.swift */,
 				2F49E7182ADC1C84FA8507D9 /* StaffKeypadPanel.swift */,
 				8F3742A51413D2DFE18D9389 /* StaffTilesPanel.swift */,
+				A1B2C3D4E5F60718293A4B5D /* StaffSignInView.swift */,
 				53A5D7FAC861C1D3BA5238E0 /* ToastOverlayView.swift */,
 			);
 			path = Views;
@@ -399,6 +402,7 @@
 				C363D246087C75DD2FAA0F93 /* CueStaffHeaderView.swift in Sources */,
 				853C2A51DD912F09A574E261 /* CueStaffViewModel.swift in Sources */,
 				5842F69B5ADC28A9E029F25A /* PinGateView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* StaffSignInView.swift in Sources */,
 				B831032C883CDAD9D76671BF /* PinSettingsSheet.swift in Sources */,
 				DECF3EB5E92CF7D81C8EC253 /* StaffKeypadPanel.swift in Sources */,
 				91935C300F7FF4AC4324349D /* StaffTilesPanel.swift in Sources */,

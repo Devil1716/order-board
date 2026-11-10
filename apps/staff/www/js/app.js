@@ -287,6 +287,33 @@
       this.textContent = snd ? 'Sound on' : 'Sound off';
       if (snd) chime();
     };
+    $('staffLoginForm').onsubmit = async function (event) {
+      event.preventDefault();
+      var button = $('staffLoginButton');
+      button.disabled = true;
+      button.textContent = 'Signing in…';
+      $('staffAuthError').hidden = true;
+      try {
+        await OBStore.signInStaff($('staffEmail').value.trim(), $('staffPassword').value);
+        await showBoard();
+      } catch (error) {
+        $('staffAuthError').textContent = error.message || 'Could not sign in.';
+        $('staffAuthError').hidden = false;
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Sign in';
+      }
+    };
+    $('staffSignOut').onclick = async function () {
+      try {
+        await OBStore.signOutStaff();
+        $('v-admin').hidden = true;
+        $('staffSignOut').hidden = true;
+        $('staffLogin').hidden = false;
+      } catch (error) {
+        toast(error.message || 'Could not sign out.');
+      }
+    };
 
     if ($('themeBtn')) {
       $('themeBtn').onclick = async function () {
@@ -304,6 +331,21 @@
 
   }
 
+  var boardStarted = false;
+
+  async function showBoard() {
+    $('staffLogin').hidden = true;
+    $('v-admin').hidden = false;
+    $('staffSignOut').hidden = !OBStore.requiresStaffAuth();
+    if (boardStarted) return;
+    boardStarted = true;
+    await refreshNextStart();
+    OBStore.onChange(function () { render(); });
+    await OBStore.init();
+    render();
+    setInterval(render, 30000);
+  }
+
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
     wireKeys();
@@ -317,11 +359,18 @@
       try { saved = localStorage.getItem('ob-theme'); } catch (e) {}
       paintThemeBtn(saved === 'dark' || (!saved && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
     }
-    await refreshNextStart();
-    OBStore.onChange(function () { render(); });
-    await OBStore.init();
-    render();
-    setInterval(render, 30000);
+    if (!OBStore.requiresStaffAuth()) {
+      await showBoard();
+      return;
+    }
+
+    $('staffLogin').hidden = false;
+    try {
+      if (await OBStore.getStaffUser()) await showBoard();
+    } catch (error) {
+      $('staffAuthError').textContent = error.message || 'Could not check staff sign-in.';
+      $('staffAuthError').hidden = false;
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -18,6 +18,43 @@
   var firebaseReady = false;
   var syncLabel = 'On this phone only — connect Firebase to sync with the counter.';
   var unsub = null;
+  var firebaseApp = null;
+  var firebaseAppMod = null;
+  var authMod = null;
+  var auth = null;
+
+  async function getFirebaseApp() {
+    var cfg = global.ORDER_BOARD_FIREBASE;
+    if (!cfg || !cfg.apiKey || !cfg.projectId) return null;
+    if (!firebaseAppMod) {
+      firebaseAppMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
+    }
+    if (!firebaseApp) {
+      firebaseApp = firebaseAppMod.getApps().length
+        ? firebaseAppMod.getApp()
+        : firebaseAppMod.initializeApp(cfg);
+    }
+    return firebaseApp;
+  }
+
+  async function getStaffAuth() {
+    var app = await getFirebaseApp();
+    if (!app) throw new Error('Firebase is not configured.');
+    if (!authMod) {
+      authMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js');
+    }
+    if (!auth) auth = authMod.getAuth(app);
+    return auth;
+  }
+
+  async function verifyStaffUser(user, forceRefresh) {
+    var token = await authMod.getIdTokenResult(user, !!forceRefresh);
+    if (token.claims.staff !== true && token.claims.role !== 'staff') {
+      await authMod.signOut(auth);
+      throw new Error('This account is not authorized for staff access.');
+    }
+    return user;
+  }
 
   function emit() {
     listeners.forEach(function (fn) {
@@ -75,9 +112,8 @@
     if (!cfg || !cfg.apiKey || !cfg.projectId) return false;
     try {
       // Dynamic import from CDN so web+Capacitor both work without bundler
-      var appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
       var fsMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
-      var app = appMod.initializeApp(cfg);
+      var app = await getFirebaseApp();
       var db = fsMod.getFirestore(app);
       var collection = fsMod.collection;
       var doc = fsMod.doc;
@@ -137,6 +173,30 @@
     getOrders: function () { return orders.slice(); },
     getSyncLabel: function () { return syncLabel; },
     isFirebase: function () { return !!col; },
+    requiresStaffAuth: function () {
+      var cfg = global.ORDER_BOARD_FIREBASE;
+      return !!(cfg && cfg.apiKey && cfg.projectId);
+    },
+    getStaffUser: async function () {
+      var staffAuth = await getStaffAuth();
+      var user = await new Promise(function (resolve, reject) {
+        var unsubscribe = function () {};
+        unsubscribe = authMod.onAuthStateChanged(staffAuth, function (currentUser) {
+          unsubscribe();
+          resolve(currentUser);
+        }, reject);
+      });
+      return user ? verifyStaffUser(user) : null;
+    },
+    signInStaff: async function (email, password) {
+      var staffAuth = await getStaffAuth();
+      var result = await authMod.signInWithEmailAndPassword(staffAuth, email, password);
+      return verifyStaffUser(result.user, true);
+    },
+    signOutStaff: async function () {
+      var staffAuth = await getStaffAuth();
+      await authMod.signOut(staffAuth);
+    },
     write: function (n, fields) { return writeLocal(n, fields); },
     find: function (n) {
       var now = Date.now();

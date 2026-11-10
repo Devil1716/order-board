@@ -204,6 +204,9 @@ body.native .top { padding-top: max(14px, env(safe-area-inset-top, 0px)); }
 
 .quick-oldest{width:100%;max-width:none;margin-top:10px;min-height:clamp(56px,14vw,64px);font-size:clamp(16px,4.5vw,20px);white-space:normal;line-height:1.2;padding:12px 16px;word-break:break-word}
 
+.staff-auth-field{display:block;margin-top:14px;text-align:left;font-weight:700}
+.staff-auth-field input{display:block;width:100%;min-height:48px;margin-top:6px;padding:10px 14px;border:2px solid var(--line);border-radius:16px;background:var(--bg);color:var(--ink);font:inherit}
+.staff-auth-field+.btn{margin-top:18px}
 
 /* —— Responsive / fluid layout (phones small→large, notches, short heights) —— */
 html{max-width:100%;overflow-x:clip}

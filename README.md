@@ -63,13 +63,23 @@ Student and Staff share a board when **Firebase Firestore** is configured. Witho
   - `Timed out`: Ready timestamp expired past 20 minutes without collection.
 
 ### 3. Deploy Firestore Security Rules
-Deploy `firestore.rules` to your Firebase project:
+Provision the staff users and claims described below, then deploy `firestore.rules` to your Firebase project:
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-> **Security Note on Staff PIN Gate**: The 4-digit PIN gate in the Staff app is **client-side only** (stored securely in iOS Keychain via `kSecClassGenericPassword`) to prevent accidental customer touches on counter tablets. The Firestore rules allow open reads and validated writes for tokens 1–150.
+> **Staff access**: The 4-digit PIN is a local convenience gate, not cloud authentication. Firestore staff writes require a Firebase Authentication account with the trusted `staff: true` or `role: "staff"` custom claim. Student collection updates remain narrowly validated by the rules.
+
+### Staff Authentication and Account Provisioning
+1. In Firebase Console, enable the **Email/Password** sign-in provider under **Authentication → Sign-in method**.
+2. Create each staff user's account under **Authentication → Users**. Do not add a public account-creation flow to either staff app.
+3. Assign the `staff: true` custom claim from a trusted Admin SDK environment (never from a client). For example, after initializing the Admin SDK and obtaining the user's UID from the console:
+   ```js
+   await getAuth().setCustomUserClaims(uid, { staff: true });
+   ```
+   Alternatively, set the `role: "staff"` claim. The user must sign in again to refresh their token after a claim is assigned.
+4. Staff sign in with that provisioned email and password in Cue Staff. The native iOS app uses its `GoogleService-Info.plist`; the Android/web app uses the web config in `shared/js/firebase-config.js`.
 
 ### 4. iOS Firebase Configuration
 1. In Firebase Console, add an **iOS App** for each bundle ID:
@@ -77,6 +87,7 @@ firebase deploy --only firestore:rules
    - `in.sharan.orderboard.staff` (Cue Staff)
 2. Download `GoogleService-Info.plist` and place it in the `ios/` folder (or copy from `GoogleService-Info.plist.example` for testing).
 3. If `GoogleService-Info.plist` is absent, the app automatically falls back to the in-memory/UserDefaults store.
+4. Enable Email/Password authentication and provision the staff account as described above before deploying the authenticated staff write rules.
 
 ---
 

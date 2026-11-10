@@ -19,10 +19,21 @@
   <div class="acts">
     <button class="ib" id="themeBtn" type="button" aria-label="Toggle color theme">Light</button>
     <button class="ib" id="snd" aria-pressed="false">Sound off</button>
+    <button class="ib" id="staffSignOut" type="button" hidden>Sign out</button>
   </div>
 </header>
 <main>
-  <section id="v-admin">
+  <section id="staffLogin" class="panel" hidden>
+    <h2>Staff sign in</h2>
+    <p class="hint">Use the staff account provided by your administrator.</p>
+    <form id="staffLoginForm">
+      <label class="staff-auth-field">Email<input id="staffEmail" type="email" autocomplete="username" required></label>
+      <label class="staff-auth-field">Password<input id="staffPassword" type="password" autocomplete="current-password" required></label>
+      <p class="hint" id="staffAuthError" role="alert" hidden></p>
+      <button class="btn red" id="staffLoginButton" type="submit">Sign in</button>
+    </form>
+  </section>
+  <section id="v-admin" hidden>
     <div class="staff">
       <div class="panel">
         <div class="entry ph" id="entry">Type a token</div>
