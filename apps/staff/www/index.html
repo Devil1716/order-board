@@ -44,6 +44,14 @@
       <div class="panel">
         <div class="entry ph" id="entry">Type a token</div>
         <div class="keys" id="keys"></div>
+        <div class="inuse" id="inuse" role="status" aria-live="polite" hidden>
+          <p class="inuse-title" id="inuseTitle"></p>
+          <p class="inuse-msg" id="inuseMsg"></p>
+          <div class="inuse-free" id="freeWrap" hidden>
+            <span class="inuse-free-label">Free nearby — tap to add</span>
+            <div class="chips" id="freeChips"></div>
+          </div>
+        </div>
         <div class="btnrow"><button class="btn red" id="mainBtn" disabled>Add token</button><button class="btn" id="handRem" hidden>Cancel order</button></div>
         <button class="btn red big quick-oldest" id="quickOldest" type="button" hidden>Mark ready</button>
         <p class="hint" id="keyHint"></p>

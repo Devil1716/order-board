@@ -14,6 +14,17 @@ service cloud.firestore {
       return ms is number && ms >= 0 && ms <= request.time.toMillis() + 60000;
     }
 
+    // An order still holds its token while it is not collected, younger than 4 h, and (if ready)
+    // ready for less than 20 min. This mirrors TokenRules / the client transaction, but with a
+    // 1-minute grace so clock skew between a phone and the server never blocks a legitimate
+    // re-issue. Re-issuing (changing `t`) is only allowed once the old order no longer holds it.
+    function holdsToken(order) {
+      return order.get('t', 0) is number
+        && order.get('c', 0) == 0
+        && request.time.toMillis() - order.get('t', 0) <= 14400000 - 60000
+        && (order.get('r', 0) == 0 || request.time.toMillis() - order.get('r', 0) <= 1200000 - 60000);
+    }
+
     // Orders collection for Cue restaurant token board
     // Documents are keyed by token number ("1" through "150")
     match /orders/{token} {
@@ -34,6 +45,7 @@ service cloud.firestore {
                     && (
                       // Case A: Staff update (mark ready, cancel, hand over, re-issue)
                       (isStaff()
+                       && (request.resource.data.t == resource.data.get('t', 0) || !holdsToken(resource.data))
                        && ('t' in request.resource.data && request.resource.data.t is number && request.resource.data.t > 0 && request.resource.data.t <= request.time.toMillis() + 60000)
                        && (!('r' in request.resource.data) || isValidTimestamp(request.resource.data.r))
                        && (!('c' in request.resource.data) || isValidTimestamp(request.resource.data.c)))

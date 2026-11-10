@@ -88,9 +88,14 @@ Before deploying, configure and distribute staff clients and provision staff acc
 ### 6. Android / Web Firebase Configuration
 Set the Firebase web app configuration in `shared/js/firebase-config.js` and run `npm run sync-shared`. The staff app signs in with the provisioned email/password before attaching its Firestore listener; the student app remains publicly readable and can submit collection updates without signing in.
 
-On Android, staff add a token by typing its number on the keypad. With Firebase configured, the add is a Firestore transaction that refuses a token still active on any device (same stale/expiry rules as `TokenRules.swift`, see `shared/js/token-rules.js`) and creates `orders/{token}` `{t, r:0, c:0}`. All writes wait for Firestore to confirm; a rejected write is rolled back and shown as an error. Without a Firebase config the apps stay local-only.
+On Android, staff add a token by typing its number on the keypad. Duplicates are prevented in three layers:
+1. **Live check while typing** – if the number is already in use (not collected, under 4 h old, and not ready for more than 20 min) the keypad shows "Token N is already in use" with since-when, offers *Mark ready* / *Hand over* instead of *Add*, shakes/vibrates, and suggests the nearest free numbers (tap one to add it). A number handed over in the last 2 minutes only gets a warning ("Add it again?").
+2. **Transaction guard** – the add is a Firestore transaction that refuses an active token (covers two phones racing) and creates `orders/{n}` `{t, r:0, c:0}`.
+3. **Security rules** – a staff update cannot change `t` (re-issue) on an order that still holds its token, so even a buggy client can't duplicate it. iOS flows (issue transaction, ready / hand over / cancel / undo) are unaffected.
 
-Run the JS tests (token rules, store behaviour against a fake Firestore) with `npm test`.
+All writes wait for Firestore to confirm; a rejected write is rolled back and shown as an error. Without a Firebase config the apps stay local-only.
+
+Run the JS tests (token rules, keypad states, store behaviour against a fake Firestore) with `npm test`, and the `firestore.rules` tests against the Firebase emulator (needs Java 21) with `npm run test:rules`.
 
 ---
 

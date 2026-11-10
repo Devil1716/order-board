@@ -66,28 +66,106 @@
     toast('Token ' + n + ' taken off', function () { write(n, { c: 0 }); });
   }
 
-  function modeOf(n) {
-    var V = view();
-    if (V.prep.some(function (x) { return x.n === n; })) return 'prep';
-    if (V.rd.some(function (x) { return x.n === n; })) return 'ready';
-    return 'none';
+  var TR = window.OBTokenRules;
+  var conflictN = 0, shakeKey = '';
+
+  /** Keypad state for token n: free / recent / preparing / ready / invalid / conflict. */
+  function stateFor(n) {
+    var st = TR.entryState(n, n ? OBStore.find(n) : null, Date.now());
+    if (n && !st.blocked && n === conflictN) {
+      return {
+        kind: 'conflict', blocked: true, n: n,
+        title: 'Token ' + n + ' was just taken',
+        message: 'Another phone added token ' + n + ' a moment ago. Pick a free number.'
+      };
+    }
+    return st;
+  }
+
+  /** Shake/haptic only once the number looks intended (2+ digits), not on the first digit of e.g. 12 or 125. */
+  function typedComplete() {
+    return typed.length >= 2;
+  }
+
+  function shakeEntry() {
+    var e = $('entry');
+    e.classList.remove('shake');
+    void e.offsetWidth;
+    e.classList.add('shake');
+    try {
+      var H = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Haptics;
+      if (H && H.notification) H.notification({ type: 'WARNING' });
+      else if (H && H.impact) H.impact({ style: 'Heavy' });
+      else if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    } catch (e2) {}
+  }
+
+  function addToken(n) {
+    return OBStore.issueToken(n).then(function () {
+      toast('Token ' + n + ' added', function () { write(n, { c: Date.now() }); });
+    }, function (err) {
+      if (err && err.code === 'in-use') {
+        // Lost a race with another phone: keep the number on the keypad and explain inline.
+        conflictN = n;
+        typed = String(n);
+        render();
+        shakeKey = typed + ':conflict';
+        shakeEntry();
+      }
+      fail(err);
+    });
   }
 
   function drawEntry() {
     var e = $('entry');
+    var n = parseInt(typed, 10) || 0;
+    if (conflictN && n !== conflictN) conflictN = 0;
+    var st = stateFor(n), mb = $('mainBtn');
+    var inUse = st.kind === 'preparing' || st.kind === 'ready' || st.kind === 'conflict';
+    var warn = st.kind === 'recent';
+
     e.textContent = typed || 'Type a token';
-    e.className = 'entry' + (typed ? '' : ' ph');
-    var n = parseInt(typed, 10), m = n ? modeOf(n) : 'none', mb = $('mainBtn');
-    mb.disabled = !n;
-    mb.textContent = !n ? 'Add token' : m === 'prep' ? 'Ready: ' + n : m === 'ready' ? 'Hand over: ' + n : 'Add token ' + n;
-    $('handRem').hidden = !(n && m === 'prep');
+    e.className = 'entry' + (typed ? '' : ' ph') + (inUse || st.kind === 'invalid' ? ' bad' : warn ? ' warn' : '') +
+      (e.classList.contains('shake') ? ' shake' : '');
+
+    mb.disabled = !n || st.kind === 'invalid' || st.kind === 'conflict';
+    mb.textContent = !n ? 'Add token'
+      : st.kind === 'preparing' ? 'Mark ' + n + ' ready'
+      : st.kind === 'ready' ? 'Hand over ' + n
+      : warn ? 'Add ' + n + ' again'
+      : st.kind === 'free' ? 'Add token ' + n
+      : 'Add token';
+    $('handRem').hidden = st.kind !== 'preparing';
+
+    var card = $('inuse');
+    card.hidden = !(inUse || warn);
+    card.className = 'inuse' + (warn ? ' warn' : '');
+    if (!card.hidden) {
+      $('inuseTitle').textContent = st.title;
+      $('inuseMsg').textContent = st.message;
+      var free = inUse ? TR.nearestFree(n, OBStore.find, Date.now(), 3) : [];
+      $('freeWrap').hidden = !free.length;
+      var chips = $('freeChips');
+      chips.innerHTML = '';
+      free.forEach(function (f) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = f;
+        b.setAttribute('aria-label', 'Add token ' + f + ' instead');
+        b.onclick = function () { typed = ''; addToken(f); render(); };
+        chips.appendChild(b);
+      });
+    }
+
+    var key = typed + ':' + st.kind;
+    if ((st.kind === 'preparing' || st.kind === 'ready') && typedComplete() && key !== shakeKey) shakeEntry();
+    shakeKey = key;
+
+    $('keyHint').hidden = !(!n || st.kind === 'free');
     $('keyHint').textContent = !n
       ? 'The red button changes based on the number.'
-      : m === 'prep'
-        ? 'In the kitchen — tap Ready when it’s done.'
-        : m === 'ready'
-          ? 'Waiting for pickup — tap Hand over when given.'
-          : 'Not in the queue yet — tap Add.';
+      : 'Free — tap Add.';
   }
 
   function render() {
@@ -174,21 +252,18 @@
   function act() {
     var n = parseInt(typed, 10);
     if (!n) return;
-    if (n < 1 || n > POOL) {
+    var st = stateFor(n);
+    if (st.kind === 'invalid') {
       toast('Token must be between 1 and ' + POOL);
       typed = '';
       render();
       return;
     }
-    var m = modeOf(n);
+    if (st.kind === 'conflict') return;
     typed = '';
-    if (m === 'prep') callReady(n);
-    else if (m === 'ready') handOver(n);
-    else {
-      OBStore.issueToken(n).then(function () {
-        toast('Token ' + n + ' added', function () { write(n, { c: Date.now() }); });
-      }, fail);
-    }
+    if (st.kind === 'preparing') callReady(n);
+    else if (st.kind === 'ready') handOver(n);
+    else addToken(n);
   }
 
   function remHand() {

@@ -260,3 +260,18 @@ body.native .top { padding-top: max(14px, env(safe-area-inset-top, 0px)); }
 .auth-form .btn{max-width:none;margin-top:4px}
 .auth-err{min-height:1.4em;text-align:center;color:#a3001a}
 .auth-err:empty{min-height:0;margin:0}
+
+/* Staff duplicate-token guard */
+.entry.bad{box-shadow:0 0 0 3px var(--red)}
+.entry.warn{box-shadow:0 0 0 3px #f5a623}
+.entry.shake{animation:cue-shake .45s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes cue-shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
+@media (prefers-reduced-motion:reduce){.entry.shake{animation:none}}
+.inuse{margin:14px 0 0;padding:14px 16px;border-radius:20px;background:var(--bg);color:var(--ink);border:2px solid var(--red);text-align:left}
+.inuse.warn{border-color:#f5a623}
+.inuse-title{margin:0;font-weight:800;font-size:clamp(16px,4.6vw,19px);line-height:1.25}
+.inuse-msg{margin:4px 0 0;font-weight:600;font-size:14px;color:var(--mute);line-height:1.35}
+.inuse-free{margin-top:12px}
+.inuse-free-label{display:block;font-weight:800;font-size:13px;margin-bottom:8px}
+.inuse-free .chip{border:2px solid var(--red);background:var(--card);color:var(--pi);min-width:56px}
+.inuse-free .chip:active{background:var(--red);color:var(--redink)}
