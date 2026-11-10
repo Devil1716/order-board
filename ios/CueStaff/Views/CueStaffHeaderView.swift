@@ -75,22 +75,6 @@ public struct CueStaffHeaderView: View {
                                 .stroke(CueTheme.line(for: colorScheme), lineWidth: 1)
                         )
                 }
-
-                if viewModel.staffEmail != nil {
-                    Button("Sign out") {
-                        viewModel.signOutStaff()
-                    }
-                    .font(.system(size: 13, weight: .bold))
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 40)
-                    .background(CueTheme.card(for: colorScheme))
-                    .foregroundColor(CueTheme.ink(for: colorScheme))
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(CueTheme.line(for: colorScheme), lineWidth: 1)
-                    )
-                }
             }
         }
         .padding(.horizontal, CueTheme.gutter)

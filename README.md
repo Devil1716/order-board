@@ -63,31 +63,30 @@ Student and Staff share a board when **Firebase Firestore** is configured. Witho
   - `Timed out`: Ready timestamp expired past 20 minutes without collection.
 
 ### 3. Deploy Firestore Security Rules
-Provision the staff users and claims described below, then deploy `firestore.rules` to your Firebase project:
+Provision the staff accounts described below, then deploy `firestore.rules` to your Firebase project:
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-> **Staff access**: The 4-digit PIN is a local convenience gate, not cloud authentication. Firestore staff writes require a Firebase Authentication account with the trusted `staff: true` or `role: "staff"` custom claim. Student collection updates remain narrowly validated by the rules.
+Before deploying, configure and distribute staff clients and provision staff accounts using steps 4–6 below; existing unauthenticated staff clients will no longer be able to write.
 
-### Staff Authentication and Account Provisioning
-1. In Firebase Console, enable the **Email/Password** sign-in provider under **Authentication → Sign-in method**.
-2. Create each staff user's account under **Authentication → Users**. Do not add a public account-creation flow to either staff app.
-3. Assign the `staff: true` custom claim from a trusted Admin SDK environment (never from a client). For example, after initializing the Admin SDK and obtaining the user's UID from the console:
-   ```js
-   await getAuth().setCustomUserClaims(uid, { staff: true });
-   ```
-   Alternatively, set the `role: "staff"` claim. The user must sign in again to refresh their token after a claim is assigned.
-4. Staff sign in with that provisioned email and password in Cue Staff. The native iOS app uses its `GoogleService-Info.plist`; the Android/web app uses the web config in `shared/js/firebase-config.js`.
+> **Staff access**: Staff writes require a Firebase email/password account and a provisioned `staff/{uid}` document. The local 4-digit PIN is an additional convenience gate, not a substitute for Firebase authentication. Students can still mark ready orders collected without signing in.
 
-### 4. iOS Firebase Configuration
+### 4. Provision Staff Accounts
+1. In Firebase Console, enable **Email/Password** under Authentication sign-in providers.
+2. Create an account for each staff member in **Authentication → Users** and provide its credentials to that staff member securely.
+3. Copy the account UID and create a Firestore document at `staff/{uid}` (an empty document is sufficient). Only provisioned accounts can perform staff writes; the rules allow an account to read only its own membership document and do not allow clients to create or modify membership.
+
+### 5. iOS Firebase Configuration
 1. In Firebase Console, add an **iOS App** for each bundle ID:
    - `in.sharan.orderboard` (Cue)
    - `in.sharan.orderboard.staff` (Cue Staff)
 2. Download `GoogleService-Info.plist` and place it in the `ios/` folder (or copy from `GoogleService-Info.plist.example` for testing).
-3. If `GoogleService-Info.plist` is absent, the app automatically falls back to the in-memory/UserDefaults store.
-4. Enable Email/Password authentication and provision the staff account as described above before deploying the authenticated staff write rules.
+3. Cue Staff prompts for the provisioned Firebase email/password before showing staff controls. If `GoogleService-Info.plist` is absent, the app automatically falls back to the in-memory/UserDefaults store.
+
+### 6. Android / Web Firebase Configuration
+Set the Firebase web app configuration in `shared/js/firebase-config.js` and run `npm run sync-shared`. The staff app signs in with the provisioned email/password before attaching its Firestore listener; the student app remains publicly readable and can submit collection updates without signing in.
 
 ---
 

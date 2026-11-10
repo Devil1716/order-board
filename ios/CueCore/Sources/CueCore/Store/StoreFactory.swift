@@ -1,6 +1,6 @@
 import Foundation
-import FirebaseAuth
 import FirebaseCore
+import FirebaseAuth
 import FirebaseFirestore
 
 public enum StoreFactory {
@@ -23,28 +23,42 @@ public enum StoreFactory {
         return Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil
     }
 
-    public static func currentStaffEmail() async throws -> String? {
-        guard hasFirebaseConfig() else { return nil }
+    public static func restoreStaffSession() async throws -> Bool {
+        guard hasFirebaseConfig() else { return false }
         configureFirebaseIfNeeded()
-        guard let user = Auth.auth().currentUser else { return nil }
-        try await requireStaffClaim(for: user)
-        return user.email
-    }
-
-    public static func signInStaff(email: String, password: String) async throws -> String? {
-        configureFirebaseIfNeeded()
-        let result = try await Auth.auth().signIn(withEmail: email, password: password)
+        guard let user = Auth.auth().currentUser, !user.isAnonymous else {
+            try? Auth.auth().signOut()
+            return false
+        }
         do {
-            try await requireStaffClaim(for: result.user, forcingRefresh: true)
+            try await requireStaffAccount(userID: user.uid)
+            return true
         } catch {
             try? Auth.auth().signOut()
             throw error
         }
-        return result.user.email
     }
 
-    public static func signOutStaff() throws {
-        try Auth.auth().signOut()
+    public static func signInStaff(email: String, password: String) async throws {
+        configureFirebaseIfNeeded()
+        let result = try await Auth.auth().signIn(withEmail: email, password: password)
+        do {
+            try await requireStaffAccount(userID: result.user.uid)
+        } catch {
+            try? Auth.auth().signOut()
+            throw error
+        }
+    }
+
+    private static func requireStaffAccount(userID: String) async throws {
+        let snapshot = try await Firestore.firestore().collection("staff").document(userID).getDocument()
+        guard snapshot.exists else {
+            throw NSError(
+                domain: "CueStaff",
+                code: 403,
+                userInfo: [NSLocalizedDescriptionKey: "This account is not authorized for staff access."]
+            )
+        }
     }
 
     private static func configureFirebaseIfNeeded() {
@@ -53,17 +67,5 @@ public enum StoreFactory {
             FirebaseApp.configure()
         }
         isFirebaseConfigured = true
-    }
-
-    private static func requireStaffClaim(for user: User, forcingRefresh: Bool = false) async throws {
-        let token = try await user.getIDTokenResult(forcingRefresh: forcingRefresh)
-        let claims = token.claims
-        guard (claims["staff"] as? Bool == true) || (claims["role"] as? String == "staff") else {
-            throw NSError(
-                domain: "CueStaffAuth",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "This account is not authorized for staff access."]
-            )
-        }
     }
 }

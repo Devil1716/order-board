@@ -94,7 +94,7 @@ public class FirestoreBoardStore: BoardStore {
 
     @discardableResult
     public func write(token: Int, fields: OrderWriteFields) async throws -> Order {
-        let previousOrders = localStore.getOrders()
+        let previousOrder = localStore.getOrders().first(where: { $0.token == token })
 
         // 1. Optimistically update local store for instant UI feedback
         let isReplacementOrNew = (fields.createdMs != nil) || (localStore.find(token: token) == nil)
@@ -127,24 +127,43 @@ public class FirestoreBoardStore: BoardStore {
             return localOrder
         } catch {
             print("Firestore write error: \(error.localizedDescription)")
-            // Roll back local optimistic state on rejection
-            localStore.replaceOrdersSync(previousOrders)
-            ordersSubject.send(previousOrders)
+            // Roll back only if this optimistic order is still the current version
+            let currentOrders = localStore.rollbackWriteSync(
+                token: token,
+                expectedOrder: localOrder,
+                previousOrder: previousOrder
+            )
+            ordersSubject.send(currentOrders)
             syncLabelSubject.send("Could not sync. Check connection — local copy is safe.")
             throw error
         }
     }
 
-    /// Atomically reserves and issues the next token via Firestore transaction on `counters/token_counter`
     public func issueNextToken() async throws -> Int {
+        try await issueNextTokenWithCursor().token
+    }
+
+    /// Atomically reserves and issues the next token via Firestore transaction on `counters/token_counter`
+    public func issueNextTokenWithCursor() async throws -> TokenAllocation {
         let counterRef = db.collection("counters").document("token_counter")
         let ordersRef = db.collection("orders")
         let now = Int64(Date().timeIntervalSince1970 * 1000)
 
-        let allocatedToken: Int = try await withCheckedThrowingContinuation { continuation in
+        let allocation: TokenAllocation = try await withCheckedThrowingContinuation { continuation in
             db.runTransaction({ (transaction, errorPointer) -> Any? in
-                let counterDoc: DocumentSnapshot? = try? transaction.getDocument(counterRef)
-                let currentStart = (counterDoc?.data()?["next"] as? Int) ?? 1
+                let counterDoc: DocumentSnapshot?
+                do {
+                    counterDoc = try transaction.getDocument(counterRef)
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+                let counterData = counterDoc?.data() ?? [:]
+                let storedStart = (counterData["next"] as? NSNumber)?.intValue ?? (counterData["next"] as? Int) ?? 1
+                let currentStart = TokenRules.isValidToken(storedStart) ? storedStart : 1
+                let currentVersion = (counterData["version"] as? NSNumber)?.int64Value
+                    ?? (counterData["version"] as? Int64)
+                    ?? 0
                 let staleMs = TokenRules.staleWindowMs
                 let expiryMs = TokenRules.expiryMs
 
@@ -152,7 +171,13 @@ public class FirestoreBoardStore: BoardStore {
                 for k in 0..<TokenRules.maxToken {
                     let candidate = (currentStart - 1 + k) % TokenRules.maxToken + 1
                     let orderDocRef = ordersRef.document(String(candidate))
-                    let orderDoc: DocumentSnapshot? = try? transaction.getDocument(orderDocRef)
+                    let orderDoc: DocumentSnapshot?
+                    do {
+                        orderDoc = try transaction.getDocument(orderDocRef)
+                    } catch {
+                        errorPointer?.pointee = error as NSError
+                        return nil
+                    }
 
                     var isTaken = false
                     if let doc = orderDoc, doc.exists, let data = doc.data() {
@@ -180,17 +205,36 @@ public class FirestoreBoardStore: BoardStore {
                 }
 
                 let nextVal = (token % TokenRules.maxToken) + 1
-                transaction.setData(["next": nextVal, "updatedAt": now], forDocument: counterRef, merge: true)
+                let nextVersion = currentVersion + 1
+                transaction.setData(
+                    ["next": nextVal, "version": nextVersion, "updatedAt": now],
+                    forDocument: counterRef,
+                    merge: true
+                )
 
                 let orderDocRef = ordersRef.document(String(token))
                 transaction.setData(["t": now, "r": 0, "c": 0], forDocument: orderDocRef, merge: true)
 
-                return token
+                return [
+                    "token": token,
+                    "previousStart": currentStart,
+                    "nextStart": nextVal,
+                    "counterVersion": nextVersion
+                ]
             }) { (object, error) in
                 if let error = error {
                     continuation.resume(throwing: error)
-                } else if let token = object as? Int {
-                    continuation.resume(returning: token)
+                } else if let result = object as? [String: Any],
+                          let token = result["token"] as? Int,
+                          let previousStart = result["previousStart"] as? Int,
+                          let nextStart = result["nextStart"] as? Int,
+                          let counterVersion = result["counterVersion"] as? Int64 {
+                    continuation.resume(returning: TokenAllocation(
+                        token: token,
+                        previousStart: previousStart,
+                        nextStart: nextStart,
+                        counterVersion: counterVersion
+                    ))
                 } else {
                     continuation.resume(throwing: NSError(domain: "Cue", code: 500, userInfo: [NSLocalizedDescriptionKey: "Transaction failed"]))
                 }
@@ -198,12 +242,12 @@ public class FirestoreBoardStore: BoardStore {
         }
 
         // Update local state with the issued token
-        _ = localStore.writeSync(token: allocatedToken, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
-        await localStore.setNextStart((allocatedToken % TokenRules.maxToken) + 1)
+        _ = localStore.writeSync(token: allocation.token, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+        try await localStore.setNextStart(allocation.nextStart)
         ordersSubject.send(localStore.getOrders())
         syncLabelSubject.send("Live with the counter.")
 
-        return allocatedToken
+        return allocation
     }
 
     public func find(token: Int) -> Order? {
@@ -229,11 +273,95 @@ public class FirestoreBoardStore: BoardStore {
     }
 
     // MARK: - Staff Next Token (delegated to local store)
-    public func getNextStart() async -> Int {
-        await localStore.getNextStart()
+    public func getNextStart() async throws -> Int {
+        let counter = try await db.collection("counters").document("token_counter").getDocument(source: .server)
+        let storedStart = (counter.data()?["next"] as? NSNumber)?.intValue
+            ?? (counter.data()?["next"] as? Int)
+            ?? 1
+        let start = TokenRules.isValidToken(storedStart) ? storedStart : 1
+        try await localStore.setNextStart(start)
+        return start
     }
 
-    public func setNextStart(_ token: Int) async {
-        await localStore.setNextStart(token)
+    public func setNextStart(_ token: Int) async throws {
+        let safeToken = TokenRules.isValidToken(token) ? token : 1
+        let counterRef = db.collection("counters").document("token_counter")
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.runTransaction({ transaction, errorPointer -> Any? in
+                let counterDoc: DocumentSnapshot?
+                do {
+                    counterDoc = try transaction.getDocument(counterRef)
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+                let data = counterDoc?.data() ?? [:]
+                let version = (data["version"] as? NSNumber)?.int64Value
+                    ?? (data["version"] as? Int64)
+                    ?? 0
+                let nextVersion = version + 1
+                transaction.setData(
+                    ["next": safeToken, "version": nextVersion, "updatedAt": now],
+                    forDocument: counterRef,
+                    merge: true
+                )
+                return nextVersion
+            }) { _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        try await localStore.setNextStart(safeToken)
+    }
+
+    public func restoreNextStart(from allocation: TokenAllocation) async throws -> Bool {
+        let counterRef = db.collection("counters").document("token_counter")
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let restored: Bool = try await withCheckedThrowingContinuation { continuation in
+            db.runTransaction({ transaction, errorPointer -> Any? in
+                let counterDoc: DocumentSnapshot?
+                do {
+                    counterDoc = try transaction.getDocument(counterRef)
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+                let data = counterDoc?.data() ?? [:]
+                let version = (data["version"] as? NSNumber)?.int64Value
+                    ?? (data["version"] as? Int64)
+                    ?? 0
+                guard version == allocation.counterVersion else { return false }
+                transaction.setData(
+                    [
+                        "next": allocation.previousStart,
+                        "version": version + 1,
+                        "updatedAt": now
+                    ],
+                    forDocument: counterRef,
+                    merge: true
+                )
+                return true
+            }) { object, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let restored = object as? Bool {
+                    continuation.resume(returning: restored)
+                } else {
+                    continuation.resume(throwing: NSError(
+                        domain: "Cue",
+                        code: 500,
+                        userInfo: [NSLocalizedDescriptionKey: "Counter update failed"]
+                    ))
+                }
+            }
+        }
+        if restored {
+            try await localStore.setNextStart(allocation.previousStart)
+        }
+        return restored
     }
 }

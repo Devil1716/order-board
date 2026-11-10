@@ -75,20 +75,50 @@ final class LocalBoardStoreTests: XCTestCase {
         XCTAssertEqual(persisted, [21])
     }
 
-    func testNextStartPointer() async {
+    func testNextStartPointer() async throws {
         let store = LocalBoardStore(userDefaults: userDefaults)
 
-        let initial = await store.getNextStart()
+        let initial = try await store.getNextStart()
         XCTAssertEqual(initial, 1)
 
-        await store.setNextStart(50)
-        let updated = await store.getNextStart()
+        try await store.setNextStart(50)
+        let updated = try await store.getNextStart()
         XCTAssertEqual(updated, 50)
 
         // Wrap around when setting > 150
-        await store.setNextStart(151)
-        let wrapped = await store.getNextStart()
+        try await store.setNextStart(151)
+        let wrapped = try await store.getNextStart()
         XCTAssertEqual(wrapped, 1)
+    }
+
+    func testUndoOnlyRestoresUnchangedCursor() async throws {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        try await store.setNextStart(10)
+
+        let allocation = try await store.issueNextTokenWithCursor()
+        XCTAssertEqual(allocation.token, 10)
+        XCTAssertEqual(allocation.previousStart, 10)
+        let nextStart = try await store.getNextStart()
+        XCTAssertEqual(nextStart, 11)
+
+        let restored = try await store.restoreNextStart(from: allocation)
+        XCTAssertTrue(restored)
+        let restoredStart = try await store.getNextStart()
+        XCTAssertEqual(restoredStart, 10)
+        let restoredAgain = try await store.restoreNextStart(from: allocation)
+        XCTAssertFalse(restoredAgain)
+    }
+
+    func testUndoDoesNotOverwriteNewCursor() async throws {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        try await store.setNextStart(10)
+        let allocation = try await store.issueNextTokenWithCursor()
+        try await store.setNextStart(12)
+
+        let restored = try await store.restoreNextStart(from: allocation)
+        XCTAssertFalse(restored)
+        let nextStart = try await store.getNextStart()
+        XCTAssertEqual(nextStart, 12)
     }
 
     func testPruneStaleOrders() async throws {
@@ -132,6 +162,34 @@ final class LocalBoardStoreTests: XCTestCase {
         XCTAssertFalse(view.ready.contains(where: { $0.token == 5 }))
     }
 
+    func testRollbackPreservesUpdatesToOtherTokens() {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let original = Order(token: 1, createdMs: now)
+        let optimistic = Order(token: 1, createdMs: now, readyMs: now + 1_000)
+        let updatedOther = Order(token: 2, createdMs: now, collectedMs: now + 2_000)
+
+        store.replaceOrdersSync([optimistic, updatedOther])
+        let result = store.rollbackWriteSync(token: 1, expectedOrder: optimistic, previousOrder: original)
+
+        XCTAssertEqual(result, [original, updatedOther])
+        XCTAssertEqual(store.getOrders(), [original, updatedOther])
+    }
+
+    func testRollbackDoesNotReplaceNewerVersionOfSameToken() {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let original = Order(token: 1, createdMs: now)
+        let optimistic = Order(token: 1, createdMs: now, readyMs: now + 1_000)
+        let newer = Order(token: 1, createdMs: now, readyMs: now + 2_000)
+
+        store.replaceOrdersSync([newer])
+        let result = store.rollbackWriteSync(token: 1, expectedOrder: optimistic, previousOrder: original)
+
+        XCTAssertEqual(result, [newer])
+        XCTAssertEqual(store.getOrders(), [newer])
+    }
+
     func testKeychainServicePinFlow() {
         KeychainService.deletePin()
         XCTAssertFalse(KeychainService.hasPin())
@@ -157,7 +215,7 @@ final class LocalBoardStoreTests: XCTestCase {
 
     func testIssueNextTokenAtomic() async throws {
         let store = LocalBoardStore(userDefaults: userDefaults)
-        await store.setNextStart(10)
+        try await store.setNextStart(10)
         let t1 = try await store.issueNextToken()
         XCTAssertEqual(t1, 10)
         XCTAssertTrue(store.view().preparing.contains(where: { $0.token == 10 }))

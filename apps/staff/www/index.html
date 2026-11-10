@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Cue Staff</title>
+<script>window.ORDER_BOARD_STAFF_APP = true;</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
@@ -19,19 +20,19 @@
   <div class="acts">
     <button class="ib" id="themeBtn" type="button" aria-label="Toggle color theme">Light</button>
     <button class="ib" id="snd" aria-pressed="false">Sound off</button>
-    <button class="ib" id="staffSignOut" type="button" hidden>Sign out</button>
   </div>
 </header>
 <main>
-  <section id="staffLogin" class="panel" hidden>
-    <h2>Staff sign in</h2>
-    <p class="hint">Use the staff account provided by your administrator.</p>
-    <form id="staffLoginForm">
-      <label class="staff-auth-field">Email<input id="staffEmail" type="email" autocomplete="username" required></label>
-      <label class="staff-auth-field">Password<input id="staffPassword" type="password" autocomplete="current-password" required></label>
-      <p class="hint" id="staffAuthError" role="alert" hidden></p>
-      <button class="btn red" id="staffLoginButton" type="submit">Sign in</button>
-    </form>
+  <section id="staff-auth" hidden>
+    <div class="panel">
+      <h1>Staff sign in</h1>
+      <form id="staff-auth-form">
+        <p><label>Email<br><input id="staff-email" type="email" autocomplete="username" required></label></p>
+        <p><label>Password<br><input id="staff-password" type="password" autocomplete="current-password" required></label></p>
+        <button class="btn red" type="submit">Sign in</button>
+      </form>
+      <p class="hint" id="staff-auth-error" role="alert"></p>
+    </div>
   </section>
   <section id="v-admin" hidden>
     <div class="staff">

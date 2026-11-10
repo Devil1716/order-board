@@ -25,9 +25,6 @@ public class CueStaffViewModel: ObservableObject {
     // PIN Gate state
     @Published public var isUnlocked: Bool = false
     @Published public var showPinSettings: Bool = false
-    @Published public var staffEmail: String?
-    @Published public var signInError: String?
-    @Published public var isSigningIn: Bool = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -69,11 +66,10 @@ public class CueStaffViewModel: ObservableObject {
             .store(in: &cancellables)
 
         Task {
-            self.nextStart = await store.getNextStart()
             do {
-                self.staffEmail = try await StoreFactory.currentStaffEmail()
+                self.nextStart = try await store.getNextStart()
             } catch {
-                self.signInError = error.localizedDescription
+                self.showToast(error.localizedDescription, undo: nil)
             }
         }
     }
@@ -207,11 +203,10 @@ public class CueStaffViewModel: ObservableObject {
         Task { [weak self] in
             guard let self = self else { return }
             do {
-                let prevNext = self.nextStart
-                let n = try await self.store.issueNextToken()
-                self.nextStart = (n % TokenRules.maxToken) + 1
-                self.showToast("Give customer token \(n)") { [weak self] in
-                    self?.undoGiveNextToken(n, prevNext: prevNext)
+                let allocation = try await self.store.issueNextTokenWithCursor()
+                self.nextStart = allocation.nextStart
+                self.showToast("Give customer token \(allocation.token)") { [weak self] in
+                    self?.undoGiveNextToken(allocation)
                 }
             } catch {
                 self.showToast(error.localizedDescription, undo: nil)
@@ -219,11 +214,23 @@ public class CueStaffViewModel: ObservableObject {
         }
     }
 
-    private func undoGiveNextToken(_ token: Int, prevNext: Int) {
+    private func undoGiveNextToken(_ allocation: TokenAllocation) {
         Task { [weak self] in
-            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
-            await self?.store.setNextStart(prevNext)
-            self?.nextStart = prevNext
+            guard let self = self else { return }
+            do {
+                _ = try await self.store.write(
+                    token: allocation.token,
+                    fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000))
+                )
+                if try await self.store.restoreNextStart(from: allocation) {
+                    self.nextStart = allocation.previousStart
+                } else {
+                    self.nextStart = try await self.store.getNextStart()
+                    self.showToast("Token removed; numbering changed on another device.", undo: nil)
+                }
+            } catch {
+                self.showToast(error.localizedDescription, undo: nil)
+            }
         }
     }
 
@@ -231,9 +238,13 @@ public class CueStaffViewModel: ObservableObject {
         HapticsService.light()
         Task { [weak self] in
             guard let self = self else { return }
-            await self.store.setNextStart(1)
-            self.nextStart = 1
-            self.showToast("Numbering restarts at 1", undo: nil)
+            do {
+                try await self.store.setNextStart(1)
+                self.nextStart = 1
+                self.showToast("Numbering restarts at 1", undo: nil)
+            } catch {
+                self.showToast(error.localizedDescription, undo: nil)
+            }
         }
     }
 
@@ -298,30 +309,5 @@ public class CueStaffViewModel: ObservableObject {
             return true
         }
         return false
-    }
-
-    public var requiresStaffSignIn: Bool {
-        StoreFactory.hasFirebaseConfig() && staffEmail == nil
-    }
-
-    public func signInStaff(email: String, password: String) async {
-        isSigningIn = true
-        signInError = nil
-        defer { isSigningIn = false }
-        do {
-            staffEmail = try await StoreFactory.signInStaff(email: email, password: password)
-        } catch {
-            signInError = error.localizedDescription
-        }
-    }
-
-    public func signOutStaff() {
-        do {
-            try StoreFactory.signOutStaff()
-            staffEmail = nil
-            isUnlocked = false
-        } catch {
-            signInError = error.localizedDescription
-        }
     }
 }
