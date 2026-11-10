@@ -304,8 +304,9 @@
 
   }
 
-  async function boot() {
-    if (window.OBNative) await OBNative.setupChrome();
+  async function startBoard() {
+    $('staff-auth').hidden = true;
+    $('v-admin').hidden = false;
     wireKeys();
     wireUi();
 
@@ -322,6 +323,38 @@
     await OBStore.init();
     render();
     setInterval(render, 30000);
+  }
+
+  async function boot() {
+    if (window.OBNative) await OBNative.setupChrome();
+    if (window.ORDER_BOARD_STAFF_APP && window.ORDER_BOARD_FIREBASE) {
+      $('staff-auth').hidden = false;
+      $('staff-auth-form').onsubmit = async function (event) {
+        event.preventDefault();
+        var button = this.querySelector('button[type="submit"]');
+        button.disabled = true;
+        $('staff-auth-error').textContent = 'Signing in…';
+        try {
+          await OBStore.signInStaff($('staff-email').value, $('staff-password').value);
+          $('staff-password').value = '';
+          await startBoard();
+        } catch (error) {
+          $('staff-auth-error').textContent = error.message || 'Could not sign in.';
+        } finally {
+          button.disabled = false;
+        }
+      };
+      try {
+        if (await OBStore.restoreStaffSession()) {
+          await startBoard();
+          return;
+        }
+      } catch (error) {
+        $('staff-auth-error').textContent = error.message || 'Could not restore staff session.';
+      }
+      return;
+    }
+    await startBoard();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

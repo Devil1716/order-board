@@ -2,15 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Staff authorization helper:
-    // Requires authenticated user with custom claim 'staff: true', role 'staff',
-    // or an authenticated staff account (non-anonymous).
+    // Staff accounts are provisioned by creating a staff/{uid} document.
     function isStaff() {
-      return request.auth != null && (
-        request.auth.token.staff == true ||
-        request.auth.token.role == 'staff' ||
-        (request.auth.token.firebase.sign_in_provider != 'anonymous' && request.auth.uid != null)
-      );
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
     }
 
     // Timestamp validator enforcing non-negative number not in the future (with 1-min clock drift tolerance)
@@ -53,6 +49,12 @@ service cloud.firestore {
 
       // Staff-only deletion
       allow delete: if isStaff();
+    }
+
+    // A signed-in account can verify only its own staff membership record.
+    // Membership records must be created by a trusted administrator.
+    match /staff/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
     }
 
     // Counters collection for atomic token reservation and multi-device coordination
