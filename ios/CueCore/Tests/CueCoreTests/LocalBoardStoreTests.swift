@@ -132,6 +132,34 @@ final class LocalBoardStoreTests: XCTestCase {
         XCTAssertFalse(view.ready.contains(where: { $0.token == 5 }))
     }
 
+    func testRollbackPreservesUpdatesToOtherTokens() {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let original = Order(token: 1, createdMs: now)
+        let optimistic = Order(token: 1, createdMs: now, readyMs: now + 1_000)
+        let updatedOther = Order(token: 2, createdMs: now, collectedMs: now + 2_000)
+
+        store.replaceOrdersSync([optimistic, updatedOther])
+        let result = store.rollbackWriteSync(token: 1, expectedOrder: optimistic, previousOrder: original)
+
+        XCTAssertEqual(result, [original, updatedOther])
+        XCTAssertEqual(store.getOrders(), [original, updatedOther])
+    }
+
+    func testRollbackDoesNotReplaceNewerVersionOfSameToken() {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let original = Order(token: 1, createdMs: now)
+        let optimistic = Order(token: 1, createdMs: now, readyMs: now + 1_000)
+        let newer = Order(token: 1, createdMs: now, readyMs: now + 2_000)
+
+        store.replaceOrdersSync([newer])
+        let result = store.rollbackWriteSync(token: 1, expectedOrder: optimistic, previousOrder: original)
+
+        XCTAssertEqual(result, [newer])
+        XCTAssertEqual(store.getOrders(), [newer])
+    }
+
     func testKeychainServicePinFlow() {
         KeychainService.deletePin()
         XCTAssertFalse(KeychainService.hasPin())

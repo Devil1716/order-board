@@ -94,7 +94,7 @@ public class FirestoreBoardStore: BoardStore {
 
     @discardableResult
     public func write(token: Int, fields: OrderWriteFields) async throws -> Order {
-        let previousOrders = localStore.getOrders()
+        let previousOrder = localStore.getOrders().first(where: { $0.token == token })
 
         // 1. Optimistically update local store for instant UI feedback
         let isReplacementOrNew = (fields.createdMs != nil) || (localStore.find(token: token) == nil)
@@ -127,9 +127,13 @@ public class FirestoreBoardStore: BoardStore {
             return localOrder
         } catch {
             print("Firestore write error: \(error.localizedDescription)")
-            // Roll back local optimistic state on rejection
-            localStore.replaceOrdersSync(previousOrders)
-            ordersSubject.send(previousOrders)
+            // Roll back only if this optimistic order is still the current version
+            let currentOrders = localStore.rollbackWriteSync(
+                token: token,
+                expectedOrder: localOrder,
+                previousOrder: previousOrder
+            )
+            ordersSubject.send(currentOrders)
             syncLabelSubject.send("Could not sync. Check connection — local copy is safe.")
             throw error
         }

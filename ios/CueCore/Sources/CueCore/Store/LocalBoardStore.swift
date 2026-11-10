@@ -91,6 +91,26 @@ public class LocalBoardStore: BoardStore {
         }
     }
 
+    func rollbackWriteSync(token: Int, expectedOrder: Order, previousOrder: Order?) -> [Order] {
+        queue.sync {
+            guard let index = orders.firstIndex(where: { $0.token == token }),
+                  orders[index] == expectedOrder else {
+                return orders
+            }
+
+            if let previousOrder {
+                orders[index] = previousOrder
+            } else {
+                orders.remove(at: index)
+            }
+
+            pruneStaleInternal()
+            persistLocalInternal()
+            emitInternal()
+            return orders
+        }
+    }
+
     @discardableResult
     public func writeSync(token: Int, fields: OrderWriteFields) -> Order {
         queue.sync {
