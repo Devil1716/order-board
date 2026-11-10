@@ -33,9 +33,29 @@ public protocol BoardStore: AnyObject {
     func addTrackedToken(_ token: Int) async -> [Int]
     func removeTrackedToken(_ token: Int) async -> [Int]
 
-    // MARK: - Staff next token recommendation
-    func getNextStart() async -> Int
-    func setNextStart(_ token: Int) async
+    // MARK: - Staff next token recommendation & reservation
+    func getNextStart() async throws -> Int
+    func setNextStart(_ token: Int) async throws
+    func restoreNextStart(from allocation: TokenAllocation) async throws -> Bool
+
+    /// Atomically reserves and creates the next available order token (1–150).
+    /// Prevents two staff devices from issuing the same token via Firestore atomic transactions.
+    func issueNextToken() async throws -> Int
+    func issueNextTokenWithCursor() async throws -> TokenAllocation
+}
+
+public struct TokenAllocation {
+    public let token: Int
+    public let previousStart: Int
+    public let nextStart: Int
+    public let counterVersion: Int64
+
+    public init(token: Int, previousStart: Int, nextStart: Int, counterVersion: Int64) {
+        self.token = token
+        self.previousStart = previousStart
+        self.nextStart = nextStart
+        self.counterVersion = counterVersion
+    }
 }
 
 public extension BoardStore {

@@ -1,24 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Staff accounts are provisioned by creating a staff/{uid} document.
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+    }
+
+    // Timestamp validator enforcing non-negative number not in the future (with 1-min clock drift tolerance)
+    function isValidTimestamp(ms) {
+      return ms is number && ms >= 0 && ms <= request.time.toMillis() + 60000;
+    }
+
     // Orders collection for Cue restaurant token board
-    // Token documents keyed by token number ("1" through "150")
+    // Documents are keyed by token number ("1" through "150")
     match /orders/{token} {
       // Open read access so student & counter boards can listen to realtime updates
       allow read: if true;
 
-      // Validated write access:
-      // 1. Token ID must be within range 1–150
-      // 2. Only 't' (createdMs), 'r' (readyMs), 'c' (collectedMs) fields allowed
-      // 3. Document must have a valid positive creation timestamp 't' (> 0)
-      // 4. 'r' and 'c', if present, must be valid non-negative numbers (>= 0)
-      // Note: The Staff PIN gate is client-side only. Client-side authentication / PIN
-      // is not enforced at the Firestore rule level because students also mark collection.
-      allow write: if token.matches('^([1-9]|[1-9][0-9]|1[0-4][0-9]|150)$')
-                   && request.resource.data.keys().hasOnly(['t', 'r', 'c'])
-                   && ('t' in request.resource.data && request.resource.data.t is number && request.resource.data.t > 0)
-                   && (!('r' in request.resource.data) || (request.resource.data.r is number && request.resource.data.r >= 0))
-                   && (!('c' in request.resource.data) || (request.resource.data.c is number && request.resource.data.c >= 0));
+      // Staff-only creation of orders with valid positive creation timestamp 't'
+      allow create: if isStaff()
+                    && token.matches('^([1-9]|[1-9][0-9]|1[0-4][0-9]|150)$')
+                    && request.resource.data.keys().hasOnly(['t', 'r', 'c'])
+                    && ('t' in request.resource.data && request.resource.data.t is number && request.resource.data.t > 0 && request.resource.data.t <= request.time.toMillis() + 60000)
+                    && (!('r' in request.resource.data) || isValidTimestamp(request.resource.data.r))
+                    && (!('c' in request.resource.data) || isValidTimestamp(request.resource.data.c));
+
+      // Updates: either staff updating any allowed field, OR student marking collection on active ready orders
+      allow update: if token.matches('^([1-9]|[1-9][0-9]|1[0-4][0-9]|150)$')
+                    && request.resource.data.keys().hasOnly(['t', 'r', 'c'])
+                    && (
+                      // Case A: Staff update (mark ready, cancel, hand over, re-issue)
+                      (isStaff()
+                       && ('t' in request.resource.data && request.resource.data.t is number && request.resource.data.t > 0 && request.resource.data.t <= request.time.toMillis() + 60000)
+                       && (!('r' in request.resource.data) || isValidTimestamp(request.resource.data.r))
+                       && (!('c' in request.resource.data) || isValidTimestamp(request.resource.data.c)))
+                      ||
+                      // Case B: Student collection update (strictly limited to updating 'c' on ready orders)
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['c'])
+                       && resource.data.r > 0
+                       && resource.data.c == 0
+                       && request.resource.data.c is number
+                       && request.resource.data.c >= resource.data.r
+                       && isValidTimestamp(request.resource.data.c))
+                    );
+
+      // Staff-only deletion
+      allow delete: if isStaff();
+    }
+
+    // A signed-in account can verify only its own staff membership record.
+    // Membership records must be created by a trusted administrator.
+    match /staff/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Counters collection for atomic token reservation and multi-device coordination
+    match /counters/{counterId} {
+      allow read: if true;
+      allow write: if isStaff();
     }
   }
 }

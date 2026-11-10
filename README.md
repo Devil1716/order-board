@@ -63,26 +63,37 @@ Student and Staff share a board when **Firebase Firestore** is configured. Witho
   - `Timed out`: Ready timestamp expired past 20 minutes without collection.
 
 ### 3. Deploy Firestore Security Rules
-Deploy `firestore.rules` to your Firebase project:
+Provision the staff accounts described below, then deploy `firestore.rules` to your Firebase project:
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-> **Security Note on Staff PIN Gate**: The 4-digit PIN gate in the Staff app is **client-side only** (stored securely in iOS Keychain via `kSecClassGenericPassword`) to prevent accidental customer touches on counter tablets. The Firestore rules allow open reads and validated writes for tokens 1–150.
+Before deploying, configure and distribute staff clients and provision staff accounts using steps 4–6 below; existing unauthenticated staff clients will no longer be able to write.
 
-### 4. iOS Firebase Configuration
+> **Staff access**: Staff writes require a Firebase email/password account and a provisioned `staff/{uid}` document. The local 4-digit PIN is an additional convenience gate, not a substitute for Firebase authentication. Students can still mark ready orders collected without signing in.
+
+### 4. Provision Staff Accounts
+1. In Firebase Console, enable **Email/Password** under Authentication sign-in providers.
+2. Create an account for each staff member in **Authentication → Users** and provide its credentials to that staff member securely.
+3. Copy the account UID and create a Firestore document at `staff/{uid}` (an empty document is sufficient). Only provisioned accounts can perform staff writes; the rules allow an account to read only its own membership document and do not allow clients to create or modify membership.
+
+### 5. iOS Firebase Configuration
 1. In Firebase Console, add an **iOS App** for each bundle ID:
    - `in.sharan.orderboard` (Cue)
    - `in.sharan.orderboard.staff` (Cue Staff)
 2. Download `GoogleService-Info.plist` and place it in the `ios/` folder (or copy from `GoogleService-Info.plist.example` for testing).
-3. If `GoogleService-Info.plist` is absent, the app automatically falls back to the in-memory/UserDefaults store.
+3. Cue Staff prompts for the provisioned Firebase email/password before showing staff controls. If `GoogleService-Info.plist` is absent, the app automatically falls back to the in-memory/UserDefaults store.
+
+### 6. Android / Web Firebase Configuration
+Set the Firebase web app configuration in `shared/js/firebase-config.js` and run `npm run sync-shared`. The staff app signs in with the provisioned email/password before attaching its Firestore listener; the student app remains publicly readable and can submit collection updates without signing in.
 
 ---
 
 ## Native iOS Build & Run
 
-Requires macOS with Xcode 15+ (Swift 5.9+), targeting iOS 16.0+.
+Requires macOS with Xcode 15+ (Swift 5.9+ through Swift 6+), targeting iOS 16.0+.
+`SwiftProtobuf` is pinned to `< 1.29.0` for full backwards compatibility with Xcode 15 and Swift 5.9 toolchains.
 
 ### Open in Xcode
 ```bash
