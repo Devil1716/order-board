@@ -66,15 +66,6 @@
     toast('Token ' + n + ' taken off', function () { write(n, { c: 0 }); });
   }
 
-  function nextNumSync() { return OBStore.previewNext(); }
-
-  function undoGive(alloc) {
-    OBStore.undoIssue(alloc).then(function (restored) {
-      if (!restored) toast('Token removed; numbering changed on another device.');
-      render();
-    }).catch(fail);
-  }
-
   function modeOf(n) {
     var V = view();
     if (V.prep.some(function (x) { return x.n === n; })) return 'prep';
@@ -90,9 +81,6 @@
     mb.disabled = !n;
     mb.textContent = !n ? 'Add token' : m === 'prep' ? 'Ready: ' + n : m === 'ready' ? 'Hand over: ' + n : 'Add token ' + n;
     $('handRem').hidden = !(n && m === 'prep');
-    var nn = nextNumSync();
-    $('genNum').textContent = nn || 'Full';
-    $('genBtn').disabled = !nn;
     $('keyHint').textContent = !n
       ? 'The red button changes based on the number.'
       : m === 'prep'
@@ -197,8 +185,9 @@
     if (m === 'prep') callReady(n);
     else if (m === 'ready') handOver(n);
     else {
-      write(n, { t: Date.now(), r: 0, c: 0 });
-      toast('Token ' + n + ' added', function () { write(n, { c: Date.now() }); });
+      OBStore.issueToken(n).then(function () {
+        toast('Token ' + n + ' added', function () { write(n, { c: Date.now() }); });
+      }, fail);
     }
   }
 
@@ -244,26 +233,6 @@
         if (P.length) callReady(P[0].n);
       };
     }
-    $('genBtn').onclick = async function () {
-      var btn = this;
-      btn.disabled = true;
-      try {
-        var alloc = await OBStore.issueNext();
-        toast('Give the customer token ' + alloc.token, function () { undoGive(alloc); });
-      } catch (err) {
-        fail(err);
-      }
-      render();
-    };
-    $('genReset').onclick = async function () {
-      try {
-        await OBStore.setNextStart(1);
-        toast('Numbering restarts at 1');
-      } catch (err) {
-        fail(err);
-      }
-      render();
-    };
     $('handRem').onclick = remHand;
     $('moreP').onclick = function () { showAllP = !showAllP; render(); };
     $('moreR').onclick = function () { showAllR = !showAllR; render(); };
@@ -326,7 +295,6 @@
     wireUi();
     OBStore.onChange(function () { render(); });
     await OBStore.init();
-    await OBStore.getNextStart();
     render();
     setInterval(render, 30000);
   }

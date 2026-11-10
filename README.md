@@ -88,7 +88,7 @@ Before deploying, configure and distribute staff clients and provision staff acc
 ### 6. Android / Web Firebase Configuration
 Set the Firebase web app configuration in `shared/js/firebase-config.js` and run `npm run sync-shared`. The staff app signs in with the provisioned email/password before attaching its Firestore listener; the student app remains publicly readable and can submit collection updates without signing in.
 
-With Firebase configured, the Android staff app issues tokens exactly like the iOS staff app: a Firestore transaction on `counters/token_counter` (`next`, `version`, `updatedAt`) picks the first free token (same stale/expiry rules as `TokenRules.swift`, see `shared/js/token-rules.js`) and creates the `orders/{token}` document in the same transaction. Undo and *Restart at 1* also go through that counter, so Android and iOS phones never hand out the same token. All writes wait for Firestore to confirm; a rejected write is rolled back and shown as an error. Without a Firebase config the apps stay local-only.
+On Android, staff add a token by typing its number on the keypad. With Firebase configured, the add is a Firestore transaction that refuses a token still active on any device (same stale/expiry rules as `TokenRules.swift`, see `shared/js/token-rules.js`) and creates `orders/{token}` `{t, r:0, c:0}`. All writes wait for Firestore to confirm; a rejected write is rolled back and shown as an error. Without a Firebase config the apps stay local-only.
 
 Run the JS tests (token rules, store behaviour against a fake Firestore) with `npm test`.
 
@@ -166,7 +166,6 @@ xcodegen generate --spec ios/project.yml --project ios
 - **Custom numpad**: 3-column layout (1–9, Clear, 0, Delete) with tactile haptic feedback.
 - **Adaptive action button**: Automatically adapts to typed token ("Add token", "Ready: N", "Hand over: N").
 - **Quick Mark Ready**: Instant one-tap button to mark the oldest preparing order ready.
-- **Token suggestion generator**: Automatically recommends the next available token within 1–150 (reusing freed numbers) with a "Restart at 1" shortcut.
 - **Live sections**:
   - **Up next** (Preparing tiles): Oldest order highlighted in red with "Up next" badge, elapsed time (`<1m` / `Xm`), and "Cancel order" link.
   - **Ready** (Ready tiles): Tap to hand over, with "Clear all" confirmation dialog.

@@ -90,111 +90,67 @@ function loadStore({ staff = true } = {}) {
 
 const mkdata = () => new Map();
 
-test('local-only: issueNext uses the same scan, and undo restores the cursor', async () => {
+test('local-only: issueToken adds a free token and refuses an active one', async () => {
   const s = loadStore();
-  const a = await s.issueNext();
-  const b = await s.issueNext();
-  assert.deepEqual([a.token, b.token], [1, 2]);
-  assert.equal(s.previewNext(), 3);
-  assert.equal(await s.undoIssue(b), true);
-  assert.equal(s.previewNext(), 2);
-  assert.equal(s.find(2).c > 0, true, 'undone token is handed back');
-  assert.equal(await s.undoIssue(a), false, 'cursor moved on since, so it must not rewind');
-  await s.setNextStart(151);
-  assert.equal(s.previewNext(), 1, 'invalid restart falls back to 1');
+  const o = await s.issueToken(12);
+  assert.equal(o.n, 12);
+  assert.equal(s.find(12).c, 0);
+  await assert.rejects(s.issueToken(12), /Token 12 is already in use/);
+  await assert.rejects(s.issueToken(0), /between 1 and 150/);
+  await assert.rejects(s.issueToken(151), /between 1 and 150/);
+  await s.write(12, { c: Date.now() });
+  await s.issueToken(12);                       // collected → free again
+  assert.equal(s.find(12).c, 0);
 });
 
-test('firebase: issueNext writes counter {next,version,updatedAt} and the order doc in one transaction', async () => {
+test('firebase: issueToken creates {t,r:0,c:0} and never touches the counter', async () => {
   const data = mkdata();
   const fs = makeFakeFirestore(data);
   const s = loadStore();
   s._attachForTest(fs, {});
-  const a = await s.issueNext();
-  assert.equal(a.token, 1);
-  assert.equal(a.previousStart, 1);
-  assert.equal(a.nextStart, 2);
-  assert.equal(a.counterVersion, 1);
-  const counter = data.get('counters/token_counter');
-  assert.equal(counter.next, 2);
-  assert.equal(counter.version, 1);
-  assert.equal(typeof counter.updatedAt, 'number');
-  const order = data.get('orders/1');
-  assert.deepEqual(Object.keys(order).sort(), ['c', 'r', 't']);
-  assert.equal(order.r, 0);
-  assert.equal(order.c, 0);
-  assert.equal(s.getOrders().length, 1);
+  await s.issueToken(7);
+  assert.deepEqual(Object.keys(data.get('orders/7')).sort(), ['c', 'r', 't']);
+  assert.equal(data.get('orders/7').r, 0);
+  assert.equal(data.get('orders/7').c, 0);
+  assert.equal(data.has('counters/token_counter'), false);
+  assert.equal(s.find(7).c, 0);
 });
 
-test('firebase: continues from a counter written by iOS, skips taken tokens, wraps', async () => {
+test('firebase: issueToken refuses tokens active on another device, reuses free ones', async () => {
   const data = mkdata();
   const now = Date.now();
-  data.set('counters/token_counter', { next: 149, version: 41, updatedAt: now });
-  data.set('orders/149', { t: now - 1000, r: 0, c: 0 });
-  data.set('orders/150', { t: now - 1000, r: 0, c: 0 });
+  const MIN = 60000;
+  data.set('orders/1', { t: now - MIN, r: 0, c: 0 });                       // preparing
+  data.set('orders/2', { t: now - MIN, r: now - MIN, c: 0 });               // ready, fresh
+  data.set('orders/3', { t: now - 60 * MIN, r: now - 30 * MIN, c: 0 });     // ready, expired
+  data.set('orders/4', { t: now - MIN, r: now - MIN, c: now });             // collected
+  data.set('orders/5', { t: now - 5 * 3600000, r: 0, c: 0 });               // stale
   const fs = makeFakeFirestore(data);
   const s = loadStore();
-  s._attachForTest(fs, {});
-  const a = await s.issueNext();
-  assert.equal(a.token, 1);
-  assert.equal(a.previousStart, 149);
-  assert.equal(a.counterVersion, 42);
-  assert.equal(data.get('counters/token_counter').next, 2);
+  s._attachForTest(fs, {});                                                 // local copy is empty on purpose
+  await assert.rejects(s.issueToken(1), /already in use/);
+  await assert.rejects(s.issueToken(2), /already in use/);
+  assert.equal(data.get('orders/1').r, 0);
+  assert.equal(s.find(1), null, 'a refused token is not added locally');
+  for (const n of [3, 4, 5]) {
+    await s.issueToken(n);
+    assert.deepEqual({ r: data.get('orders/' + n).r, c: data.get('orders/' + n).c }, { r: 0, c: 0 });
+    assert.ok(data.get('orders/' + n).t >= now);
+  }
 });
 
-test('firebase: two phones issuing at once never get the same token', async () => {
+test('firebase: two phones adding the same token at once — exactly one wins', async () => {
   const data = mkdata();
   const fs = makeFakeFirestore(data);
   const phoneA = loadStore();
   phoneA._attachForTest(fs, {});
   const phoneB = loadStore();
   phoneB._attachForTest(fs, {});
-  const results = await Promise.all([phoneA.issueNext(), phoneB.issueNext(), phoneA.issueNext(), phoneB.issueNext()]);
-  const tokens = results.map((r) => r.token).sort((x, y) => x - y);
-  assert.deepEqual(tokens, [1, 2, 3, 4]);
+  const results = await Promise.allSettled([phoneA.issueToken(42), phoneB.issueToken(42)]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  const lost = results.find((r) => r.status === 'rejected');
+  assert.match(lost.reason.message, /Token 42 is already in use/);
   assert.ok(fs.retries > 0, 'transactions really contended and retried');
-  assert.equal(data.get('counters/token_counter').next, 5);
-  assert.equal(data.get('counters/token_counter').version, 4);
-});
-
-test('firebase: undo hands the order back and rewinds the counter only if nobody moved it', async () => {
-  const data = mkdata();
-  const fs = makeFakeFirestore(data);
-  const s = loadStore();
-  s._attachForTest(fs, {});
-  const a = await s.issueNext();
-  assert.equal(await s.undoIssue(a), true);
-  assert.equal(data.get('counters/token_counter').next, 1);
-  assert.equal(data.get('counters/token_counter').version, 2);
-  assert.ok(data.get('orders/1').c > 0);
-
-  const b = await s.issueNext();           // token 1 again (collected → free)
-  assert.equal(b.token, 1);
-  await s.issueNext();                      // someone else moves the counter
-  assert.equal(await s.undoIssue(b), false);
-  assert.equal(data.get('counters/token_counter').next, 3, 'counter untouched when version moved');
-});
-
-test('firebase: restart numbering goes through the counter and bumps version', async () => {
-  const data = mkdata();
-  data.set('counters/token_counter', { next: 77, version: 5, updatedAt: 1 });
-  const s = loadStore();
-  s._attachForTest(makeFakeFirestore(data), {});
-  await s.setNextStart(1);
-  assert.equal(data.get('counters/token_counter').next, 1);
-  assert.equal(data.get('counters/token_counter').version, 6);
-  assert.equal(await s.getNextStart(), 1);
-  assert.equal(s.previewNext(), 1);
-});
-
-test('firebase: all 150 tokens in use rejects with a clear error and writes nothing', async () => {
-  const data = mkdata();
-  const now = Date.now();
-  for (let n = 1; n <= 150; n++) data.set('orders/' + n, { t: now - 1000, r: 0, c: 0 });
-  const fs = makeFakeFirestore(data);
-  const s = loadStore();
-  s._attachForTest(fs, {});
-  await assert.rejects(() => s.issueNext(), /All 150 tokens are in use/);
-  assert.equal(fs.commits.length, 0);
 });
 
 test('firebase: write resolves after confirmation and sends only changed fields', async () => {
@@ -284,5 +240,5 @@ test('student: marking collected sends only c, and a rejection says why', async 
 
   // student cannot create orders or touch the counter
   await assert.rejects(s.write(10, { t: now, r: 0, c: 0 }), /couldn’t accept/);
-  await assert.rejects(s.issueNext());
+  await assert.rejects(s.issueToken(11), /couldn’t accept/);
 });

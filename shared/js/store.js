@@ -8,12 +8,11 @@
  * Firebase mode mirrors ios/CueCore/.../FirestoreBoardStore.swift:
  *  - writes resolve only after Firestore confirms; a rejected write rolls back
  *    the optimistic local change and rejects with a friendly Error
- *  - tokens are issued by a transaction on counters/token_counter
- *    ({ next, version, updatedAt }) that also creates the order document
+ *  - issueToken(n) (staff types a number) is a transaction that refuses to
+ *    overwrite a token that is still active on any device
  */
 (function (global) {
   var ORDERS_KEY = 'ob-orders-v1';
-  var NEXT_KEY = 'ob-next';
   var MINE_KEY = 'ob-mine';
   var MINES_KEY = 'ob-mines-v1';
   var H4 = 4 * 3600000;
@@ -25,14 +24,11 @@
   var TR = global.OBTokenRules;
   var orders = [];
   var listeners = [];
-  var fb = null;                 // { fs, db, ordersRef, counterRef } once Firestore is attached
+  var fb = null;                 // { fs, db, ordersRef } once Firestore is attached
   var syncLabel = LABEL_LOCAL;
   var errorLabelUntil = 0;
   var unsubOrders = null;
-  var unsubCounter = null;
   var firebaseModules = null;
-  var nextStart = 1;             // cached counter value (Firestore or this phone)
-  var localVersion = 0;          // stands in for counter `version` when local-only
   var writeSeq = {};
 
   function emit() {
@@ -169,145 +165,41 @@
     });
   }
 
-  function counterData(snap) {
-    return snap && snap.exists() ? (snap.data() || {}) : {};
-  }
-
-  /** Remember the counter locally so the next start survives a restart. */
-  function cacheNextStart(n) {
-    nextStart = TR.normalizeStart(n);
-    var payload = JSON.stringify({ n: nextStart });
-    try {
-      if (global.OBNative) global.OBNative.prefsSet(NEXT_KEY, payload);
-    } catch (e) {}
-    try { localStorage.setItem(NEXT_KEY, payload); } catch (e) {}
-  }
-
-  async function readCachedNextStart() {
-    var raw = null;
-    try { raw = global.OBNative ? await global.OBNative.prefsGet(NEXT_KEY) : null; } catch (e) {}
-    if (!raw) {
-      try { raw = localStorage.getItem(NEXT_KEY); } catch (e) {}
-    }
-    try {
-      var v = raw ? JSON.parse(raw) : null;
-      return TR.normalizeStart(v && v.n);
-    } catch (e) { return 1; }
-  }
-
-  async function runCounterTransaction(update) {
-    var now = Date.now();
-    return fb.fs.runTransaction(fb.db, async function (tx) {
-      var data = counterData(await tx.get(fb.counterRef));
-      var version = +data.version || 0;
-      return update(tx, data, version, now);
-    });
-  }
-
-  async function issueNext() {
-    var now = Date.now();
-    if (!fb) {
-      var start = nextStart;
-      var pick = TR.chooseTokenSync(start, liveFind, now);
-      if (!pick) throw allInUse();
-      applyLocal(pick.token, { t: now, r: 0, c: 0 });
-      localVersion += 1;
-      cacheNextStart(pick.nextStart);
-      emit();
-      return { token: pick.token, previousStart: start, nextStart: pick.nextStart, counterVersion: localVersion };
-    }
-    var alloc = await fb.fs.runTransaction(fb.db, async function (tx) {
-      var data = counterData(await tx.get(fb.counterRef));
-      var currentStart = TR.normalizeStart(data.next);
-      var version = +data.version || 0;
-      var pick = await TR.chooseToken(currentStart, async function (n) {
-        var snap = await tx.get(fb.fs.doc(fb.ordersRef, String(n)));
-        return snap.exists() ? snap.data() : null;
-      }, now);
-      if (!pick) throw allInUse();
-      tx.set(fb.counterRef, { next: pick.nextStart, version: version + 1, updatedAt: now }, { merge: true });
-      tx.set(fb.fs.doc(fb.ordersRef, String(pick.token)), { t: now, r: 0, c: 0 }, { merge: true });
-      return {
-        token: pick.token,
-        previousStart: currentStart,
-        nextStart: pick.nextStart,
-        counterVersion: version + 1
-      };
-    }).catch(function (err) {
-      throw err && err.code === 'all-in-use' ? err : explain(err);
-    });
-    applyLocal(alloc.token, { t: now, r: 0, c: 0 });
-    cacheNextStart(alloc.nextStart);
-    setLabel(LABEL_LIVE);
-    emit();
-    return alloc;
-  }
-
-  function allInUse() {
-    var e = new Error('All ' + TR.MAX_TOKEN + ' tokens are in use');
-    e.code = 'all-in-use';
+  function inUse(n) {
+    var e = new Error('Token ' + n + ' is already in use');
+    e.code = 'in-use';
     return e;
   }
 
-  async function setNextStart(n) {
-    var safe = TR.isValidToken(+n) ? +n : 1;
+  /**
+   * Staff adds a typed token. Never overwrites an active order: in Firebase mode the
+   * check and the write happen in one transaction, so two phones can't both add it.
+   * Free = not stale, or collected, or ready for more than 20 min (same as iOS).
+   */
+  async function issueToken(n) {
+    n = +n;
+    if (!TR.isValidToken(n)) {
+      var bad = new Error('Token must be between 1 and ' + TR.MAX_TOKEN);
+      bad.code = 'invalid-token';
+      throw bad;
+    }
+    var now = Date.now();
     if (!fb) {
-      localVersion += 1;
-      cacheNextStart(safe);
-      return safe;
+      if (TR.isTaken(liveFind(n), now)) throw inUse(n);
+      return applyLocal(n, { t: now, r: 0, c: 0 }).order;
     }
     try {
-      await runCounterTransaction(function (tx, data, version, now) {
-        tx.set(fb.counterRef, { next: safe, version: version + 1, updatedAt: now }, { merge: true });
+      await fb.fs.runTransaction(fb.db, async function (tx) {
+        var ref = fb.fs.doc(fb.ordersRef, String(n));
+        var snap = await tx.get(ref);
+        if (TR.isTaken(snap.exists() ? snap.data() : null, now)) throw inUse(n);
+        tx.set(ref, { t: now, r: 0, c: 0 }, { merge: true });
       });
-    } catch (err) { throw explain(err); }
-    cacheNextStart(safe);
-    return safe;
-  }
-
-  /** Put the counter back after an undo — only if nobody else moved it since (version check). */
-  async function restoreNextStart(alloc) {
-    if (!fb) {
-      if (localVersion !== alloc.counterVersion) return false;
-      localVersion += 1;
-      cacheNextStart(alloc.previousStart);
-      return true;
+    } catch (err) {
+      throw err && err.code === 'in-use' ? err : explain(err);
     }
-    var restored;
-    try {
-      restored = await runCounterTransaction(function (tx, data, version, now) {
-        if (version !== alloc.counterVersion) return false;
-        tx.set(fb.counterRef, { next: alloc.previousStart, version: version + 1, updatedAt: now }, { merge: true });
-        return true;
-      });
-    } catch (err) { throw explain(err); }
-    if (restored) cacheNextStart(alloc.previousStart);
-    return restored;
-  }
-
-  /** Undo "Give this token": hand the order back (c = now), then roll the counter back. */
-  async function undoIssue(alloc) {
-    await write(alloc.token, { c: Date.now() });
-    return restoreNextStart(alloc);
-  }
-
-  async function getNextStart() {
-    if (!fb) {
-      nextStart = await readCachedNextStart();
-      return nextStart;
-    }
-    try {
-      var snap = await fb.fs.getDocFromServer(fb.counterRef);
-      cacheNextStart(counterData(snap).next);
-    } catch (e) {
-      nextStart = await readCachedNextStart();
-    }
-    return nextStart;
-  }
-
-  function previewNext() {
-    var pick = TR.chooseTokenSync(nextStart, liveFind, Date.now());
-    return pick ? pick.token : 0;
+    setLabel(LABEL_LIVE);
+    return applyLocal(n, { t: now, r: 0, c: 0 }).order;
   }
 
   async function prepareFirebase() {
@@ -385,8 +277,7 @@
     fb = {
       fs: fsMod,
       db: db,
-      ordersRef: fsMod.collection(db, 'orders'),
-      counterRef: fsMod.doc(db, 'counters', 'token_counter')
+      ordersRef: fsMod.collection(db, 'orders')
     };
 
     if (unsubOrders) unsubOrders();
@@ -417,13 +308,6 @@
       emit();
     });
 
-    if (global.ORDER_BOARD_STAFF_APP) {
-      if (unsubCounter) unsubCounter();
-      unsubCounter = fsMod.onSnapshot(fb.counterRef, function (snap) {
-        cacheNextStart(counterData(snap).next);
-        emit();
-      }, function () {});
-    }
   }
 
   async function initFirebase() {
@@ -454,13 +338,7 @@
     signInStaff: signInStaff,
     /** Resolves when saved; rejects (after rolling back) if the counter rejects the write. */
     write: write,
-    issueNext: issueNext,
-    undoIssue: undoIssue,
-    restoreNextStart: restoreNextStart,
-    getNextStart: getNextStart,
-    setNextStart: setNextStart,
-    setNext: setNextStart,
-    previewNext: previewNext,
+    issueToken: issueToken,
     find: liveFind,
     view: function (expMin) {
       var EXP = (expMin || 20) * 60000;
@@ -549,7 +427,6 @@
     init: async function () {
       loadLocal();
       pruneStale();
-      nextStart = await readCachedNextStart();
       emit();
       await initFirebase();
       if (!fb && !global.ORDER_BOARD_FIREBASE) {
@@ -560,7 +437,7 @@
     /** Test seam: attach a Firestore-shaped module without network access. */
     _attachForTest: function (fsMod, db) { attachFirestore(fsMod, db); },
     _resetForTest: function () {
-      orders = []; fb = null; nextStart = 1; localVersion = 0; writeSeq = {};
+      orders = []; fb = null; writeSeq = {};
       errorLabelUntil = 0; syncLabel = LABEL_LOCAL;
     }
   };
