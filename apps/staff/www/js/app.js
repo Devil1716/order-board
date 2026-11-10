@@ -177,13 +177,26 @@
   function press(k) {
     if (k === 'Clear') typed = '';
     else if (k === 'Delete') typed = typed.slice(0, -1);
-    else if (typed.length < 4) typed = (typed + k).replace(/^0+(?=\d)/, '');
+    else if (typed.length < 3) {
+      var cand = (typed + k).replace(/^0+(?=\d)/, '');
+      var num = parseInt(cand, 10);
+      if (!isNaN(num) && num <= POOL) typed = cand;
+      else if (!isNaN(num) && num > POOL) {
+        toast('Token range is 1 to ' + POOL);
+      }
+    }
     render();
   }
 
   function act() {
     var n = parseInt(typed, 10);
     if (!n) return;
+    if (n < 1 || n > POOL) {
+      toast('Token must be between 1 and ' + POOL);
+      typed = '';
+      render();
+      return;
+    }
     var m = modeOf(n);
     typed = '';
     if (m === 'prep') callReady(n);
@@ -196,7 +209,7 @@
 
   function remHand() {
     var n = parseInt(typed, 10);
-    if (!n) return;
+    if (!n || n < 1 || n > POOL) return;
     typed = '';
     handOver(n);
   }
@@ -291,8 +304,9 @@
 
   }
 
-  async function boot() {
-    if (window.OBNative) await OBNative.setupChrome();
+  async function startBoard() {
+    $('staff-auth').hidden = true;
+    $('v-admin').hidden = false;
     wireKeys();
     wireUi();
 
@@ -309,6 +323,38 @@
     await OBStore.init();
     render();
     setInterval(render, 30000);
+  }
+
+  async function boot() {
+    if (window.OBNative) await OBNative.setupChrome();
+    if (window.ORDER_BOARD_STAFF_APP && window.ORDER_BOARD_FIREBASE) {
+      $('staff-auth').hidden = false;
+      $('staff-auth-form').onsubmit = async function (event) {
+        event.preventDefault();
+        var button = this.querySelector('button[type="submit"]');
+        button.disabled = true;
+        $('staff-auth-error').textContent = 'Signing in…';
+        try {
+          await OBStore.signInStaff($('staff-email').value, $('staff-password').value);
+          $('staff-password').value = '';
+          await startBoard();
+        } catch (error) {
+          $('staff-auth-error').textContent = error.message || 'Could not sign in.';
+        } finally {
+          button.disabled = false;
+        }
+      };
+      try {
+        if (await OBStore.restoreStaffSession()) {
+          await startBoard();
+          return;
+        }
+      } catch (error) {
+        $('staff-auth-error').textContent = error.message || 'Could not restore staff session.';
+      }
+      return;
+    }
+    await startBoard();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

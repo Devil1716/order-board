@@ -25,7 +25,7 @@ node_modules/
 dist/*
 !dist/.gitkeep
 
-# iOS / Xcode / CocoaPods (Pods installed in CI)
+# iOS / Xcode
 **/ios/App/Pods/
 **/ios/App/Podfile.lock
 **/ios/App/build/
@@ -41,6 +41,15 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+**/.build/
+**/.swiftpm/
+ios/CueCore/.build/
+
+# Firebase credentials
+GoogleService-Info.plist
+ios/GoogleService-Info.plist
+!GoogleService-Info.plist.example
+!ios/GoogleService-Info.plist.example
 
 # Capacitor generated (recreated by `npx cap sync`)
 **/ios/capacitor-cordova-ios-plugins/

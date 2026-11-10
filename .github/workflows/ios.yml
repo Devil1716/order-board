@@ -3,60 +3,69 @@ name: Build iOS + Android
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: ios-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  unit-tests:
+    name: Native iOS Unit Tests
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run CueCore Unit Tests
+        run: |
+          set -euo pipefail
+          DEVICE_ID=$(xcodebuild -workspace ios/Cue.xcworkspace -scheme CueCoreTests -showdestinations 2>/dev/null | grep "platform:iOS Simulator" | grep -m 1 -oE 'id:[A-F0-9-]+' | cut -d: -f2 || true)
+          if [ -n "$DEVICE_ID" ]; then
+            DEST="id=$DEVICE_ID"
+            ACTION="test"
+          else
+            DEST="generic/platform=iOS Simulator"
+            ACTION="build-for-testing"
+          fi
+          echo "Testing with destination: $DEST"
+          xcodebuild \
+            -workspace ios/Cue.xcworkspace \
+            -scheme CueCoreTests \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "$DEST" \
+            $ACTION \
+            CODE_SIGNING_ALLOWED=NO
+
   simulator:
-    name: Simulator (${{ matrix.app }})
+    name: Simulator (${{ matrix.name }})
+    needs: [unit-tests]
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - app: student
+          - scheme: Cue
+            name: student
+            app_name: Cue.app
             artifact: Cue-student-ios-simulator
-          - app: staff
+          - scheme: CueStaff
+            name: staff
+            app_name: CueStaff.app
             artifact: Cue-staff-ios-simulator
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Link workspace node_modules for Capacitor Gradle/iOS paths
-        run: |
-          ln -sfn ../../node_modules apps/student/node_modules
-          ln -sfn ../../node_modules apps/staff/node_modules
-
-      - name: Sync shared web assets
-        run: npm run sync-shared
-
-      - name: Sync Capacitor iOS
-        working-directory: apps/${{ matrix.app }}
-        run: npx cap sync ios
-
-      - name: Install CocoaPods
-        working-directory: apps/${{ matrix.app }}/ios/App
-        run: pod install
-
       - name: Build for iOS Simulator
-        working-directory: apps/${{ matrix.app }}/ios/App
         run: |
           set -euo pipefail
           xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
+            -workspace ios/Cue.xcworkspace \
+            -scheme ${{ matrix.scheme }} \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
@@ -65,19 +74,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Package .app artifact
-        working-directory: apps/${{ matrix.app }}/ios/App
         run: |
           set -euo pipefail
-          APP_PATH=$(find build/Build/Products -type d -name 'App.app' | head -n 1)
+          APP_PATH=$(find build/Build/Products -type d -name "${{ matrix.app_name }}" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            echo "App.app not found under build/Build/Products"
+            echo "${{ matrix.app_name }} not found under build/Build/Products"
             find build -type d -name '*.app' || true
             exit 1
           fi
           echo "Found: $APP_PATH"
-          mkdir -p ../../../../artifacts
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" ../../../../artifacts/${{ matrix.artifact }}.zip
-          ls -lh ../../../../artifacts/
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" artifacts/${{ matrix.artifact }}.zip
+          ls -lh artifacts/
 
       - name: Upload simulator artifact
         uses: actions/upload-artifact@v4
@@ -123,11 +131,8 @@ jobs:
   signing-gate:
     name: Check Apple signing secrets
     runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.probe.outputs.ready }}
     steps:
       - name: Probe secrets
-        id: probe
         env:
           CERT: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
           CERT_PASS: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
@@ -135,19 +140,7 @@ jobs:
           TEAM: ${{ secrets.IOS_TEAM_ID }}
         run: |
           if [ -n "$CERT" ] && [ -n "$CERT_PASS" ] && [ -n "$PROFILE" ] && [ -n "$TEAM" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "Apple signing secrets are present."
+            echo "::notice title=Device Signing::Apple signing secrets are present. Extend this job to export signed IPAs once per-app provisioning profiles are added."
           else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Device IPA skipped::Apple signing secrets are not set. Simulator builds for Student + Staff still run. See README."
           fi
-
-  device-ipa-notice:
-    name: Device IPA (needs certs per app)
-    runs-on: ubuntu-latest
-    needs: [simulator, signing-gate]
-    if: needs.signing-gate.outputs.ready == 'true'
-    steps:
-      - name: Notice
-        run: |
-          echo "::notice title=Device IPA::Signing secrets exist, but this monorepo needs separate provisioning profiles for in.sharan.orderboard and in.sharan.orderboard.staff. Extend the workflow once both profiles are available."
