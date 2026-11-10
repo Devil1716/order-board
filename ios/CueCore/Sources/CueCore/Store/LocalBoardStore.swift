@@ -6,6 +6,7 @@ import Combine
 public class LocalBoardStore: BoardStore {
     private let ordersKey = "ob-orders-v1"
     private let nextKey = "ob-next"
+    private let nextVersionKey = "ob-next-version"
     private let minesKey = "ob-mines-v1"
     private let legacyMineKey = "ob-mine"
 
@@ -217,17 +218,35 @@ public class LocalBoardStore: BoardStore {
     }
 
     // MARK: - Staff Next Token
-    public func getNextStart() async -> Int {
-        let val = userDefaults.integer(forKey: nextKey)
-        return TokenRules.isValidToken(val) ? val : 1
+    public func getNextStart() async throws -> Int {
+        queue.sync {
+            let val = userDefaults.integer(forKey: nextKey)
+            return TokenRules.isValidToken(val) ? val : 1
+        }
     }
 
-    public func setNextStart(_ token: Int) async {
-        let safeVal = token > TokenRules.maxToken ? 1 : token
-        userDefaults.set(safeVal, forKey: nextKey)
+    public func setNextStart(_ token: Int) async throws {
+        queue.sync {
+            let safeVal = TokenRules.isValidToken(token) ? token : 1
+            userDefaults.set(safeVal, forKey: nextKey)
+            userDefaults.set(userDefaults.integer(forKey: nextVersionKey) + 1, forKey: nextVersionKey)
+        }
+    }
+
+    public func restoreNextStart(from allocation: TokenAllocation) async throws -> Bool {
+        queue.sync {
+            guard Int64(userDefaults.integer(forKey: nextVersionKey)) == allocation.counterVersion else { return false }
+            userDefaults.set(allocation.previousStart, forKey: nextKey)
+            userDefaults.set(userDefaults.integer(forKey: nextVersionKey) + 1, forKey: nextVersionKey)
+            return true
+        }
     }
 
     public func issueNextToken() async throws -> Int {
+        try await issueNextTokenWithCursor().token
+    }
+
+    public func issueNextTokenWithCursor() async throws -> TokenAllocation {
         return try queue.sync {
             let savedStart = userDefaults.integer(forKey: nextKey)
             let start = TokenRules.isValidToken(savedStart) ? savedStart : 1
@@ -242,11 +261,19 @@ public class LocalBoardStore: BoardStore {
             } else {
                 orders.append(order)
             }
-            userDefaults.set((available % TokenRules.maxToken) + 1, forKey: nextKey)
+            let nextStart = (available % TokenRules.maxToken) + 1
+            let counterVersion = Int64(userDefaults.integer(forKey: nextVersionKey) + 1)
+            userDefaults.set(nextStart, forKey: nextKey)
+            userDefaults.set(counterVersion, forKey: nextVersionKey)
             pruneStaleInternal()
             persistLocalInternal()
             emitInternal()
-            return available
+            return TokenAllocation(
+                token: available,
+                previousStart: start,
+                nextStart: nextStart,
+                counterVersion: counterVersion
+            )
         }
     }
 }
