@@ -208,15 +208,26 @@ public class LocalBoardStore: BoardStore {
     }
 
     public func issueNextToken() async throws -> Int {
-        let start = await getNextStart()
-        let available = TokenRules.nextAvailableToken(currentOrders: getOrders(), start: start)
-        guard available > 0 else {
-            throw NSError(domain: "Cue", code: 409, userInfo: [NSLocalizedDescriptionKey: "All \(TokenRules.maxToken) tokens are in use"])
+        return try queue.sync {
+            let savedStart = userDefaults.integer(forKey: nextKey)
+            let start = TokenRules.isValidToken(savedStart) ? savedStart : 1
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            let available = TokenRules.nextAvailableToken(currentOrders: orders, start: start, nowMs: now)
+            guard available > 0 else {
+                throw NSError(domain: "Cue", code: 409, userInfo: [NSLocalizedDescriptionKey: "All \(TokenRules.maxToken) tokens are in use"])
+            }
+            let order = Order(token: available, createdMs: now, readyMs: 0, collectedMs: 0)
+            if let index = orders.firstIndex(where: { $0.token == available }) {
+                orders[index] = order
+            } else {
+                orders.append(order)
+            }
+            userDefaults.set((available % TokenRules.maxToken) + 1, forKey: nextKey)
+            pruneStaleInternal()
+            persistLocalInternal()
+            emitInternal()
+            return available
         }
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        _ = writeSync(token: available, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
-        await setNextStart((available % TokenRules.maxToken) + 1)
-        return available
     }
 }
 
