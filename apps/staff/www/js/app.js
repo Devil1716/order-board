@@ -41,7 +41,13 @@
     toastT = setTimeout(function () { $('toast').hidden = true; }, 6000);
   }
 
-  function write(n, f) { OBStore.write(n, f); }
+  function fail(err) {
+    toast((err && err.message) || 'Could not save. Try again.');
+    render();
+  }
+
+  /** Saves via the store; a rejected write has already been rolled back, so just tell the staff. */
+  function write(n, f) { return OBStore.write(n, f).catch(fail); }
   function view() { return OBStore.view(EXP); }
 
   function callReady(n) {
@@ -60,24 +66,13 @@
     toast('Token ' + n + ' taken off', function () { write(n, { c: 0 }); });
   }
 
-  function nextNumSync() {
-    var start = window.__obNextStart || 1;
-    var V = view(), used = {};
-    V.prep.concat(V.rd).forEach(function (x) { used[x.n] = 1; });
-    for (var k = 0; k < POOL; k++) {
-      var n = (start - 1 + k) % POOL + 1;
-      if (!used[n]) return n;
-    }
-    return 0;
-  }
+  function nextNumSync() { return OBStore.previewNext(); }
 
-  async function refreshNextStart() {
-    window.__obNextStart = await OBStore.getNextStart();
-  }
-
-  async function setNext(n) {
-    await OBStore.setNext(n);
-    window.__obNextStart = n > POOL ? 1 : n;
+  function undoGive(alloc) {
+    OBStore.undoIssue(alloc).then(function (restored) {
+      if (!restored) toast('Token removed; numbering changed on another device.');
+      render();
+    }).catch(fail);
   }
 
   function modeOf(n) {
@@ -214,6 +209,22 @@
     handOver(n);
   }
 
+  function wireTheme() {
+    if ($('themeBtn')) {
+      $('themeBtn').onclick = async function () {
+        var mode = window.OBNative ? await OBNative.toggleTheme() : (function () {
+          var cur = document.documentElement.getAttribute('data-theme') ||
+            (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          var next = cur === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          try { localStorage.setItem('ob-theme', next); } catch (e) {}
+          return next;
+        })();
+        paintThemeBtn(mode);
+      };
+    }
+  }
+
   function wireKeys() {
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', 'Delete'].forEach(function (k) {
       var b = document.createElement('button');
@@ -234,20 +245,24 @@
       };
     }
     $('genBtn').onclick = async function () {
-      var n = nextNumSync();
-      if (!n) { toast('All ' + POOL + ' tokens are in use'); return; }
-      write(n, { t: Date.now(), r: 0, c: 0 });
-      await setNext(n + 1);
-      toast('Give the customer token ' + n, function () {
-        write(n, { c: Date.now() });
-        setNext(n);
-      });
+      var btn = this;
+      btn.disabled = true;
+      try {
+        var alloc = await OBStore.issueNext();
+        toast('Give the customer token ' + alloc.token, function () { undoGive(alloc); });
+      } catch (err) {
+        fail(err);
+      }
       render();
     };
     $('genReset').onclick = async function () {
-      await setNext(1);
+      try {
+        await OBStore.setNextStart(1);
+        toast('Numbering restarts at 1');
+      } catch (err) {
+        fail(err);
+      }
       render();
-      toast('Numbering restarts at 1');
     };
     $('handRem').onclick = remHand;
     $('moreP').onclick = function () { showAllP = !showAllP; render(); };
@@ -288,58 +303,73 @@
       if (snd) chime();
     };
 
-    if ($('themeBtn')) {
-      $('themeBtn').onclick = async function () {
-        var mode = window.OBNative ? await OBNative.toggleTheme() : (function () {
-          var cur = document.documentElement.getAttribute('data-theme') ||
-            (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-          var next = cur === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', next);
-          try { localStorage.setItem('ob-theme', next); } catch (e) {}
-          return next;
-        })();
-        paintThemeBtn(mode);
-      };
-    }
-
   }
 
-  async function startBoard() {
-    $('staff-auth').hidden = true;
-    $('v-admin').hidden = false;
-    wireKeys();
-    wireUi();
-
+  async function initTheme() {
+    wireTheme();
     if (window.OBNative) {
-      var mode = await OBNative.initTheme();
-      paintThemeBtn(mode);
+      paintThemeBtn(await OBNative.initTheme());
     } else {
       var saved = null;
       try { saved = localStorage.getItem('ob-theme'); } catch (e) {}
       paintThemeBtn(saved === 'dark' || (!saved && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
     }
-    await refreshNextStart();
+  }
+
+  var boardStarted = false;
+  async function startBoard() {
+    if (boardStarted) return;
+    boardStarted = true;
+    $('staff-auth').hidden = true;
+    $('v-admin').hidden = false;
+    wireKeys();
+    wireUi();
     OBStore.onChange(function () { render(); });
     await OBStore.init();
+    await OBStore.getNextStart();
     render();
     setInterval(render, 30000);
   }
 
+  function authMessage(error) {
+    var code = error && error.code ? String(error.code) : '';
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(code)) return 'Wrong email or password.';
+    if (/invalid-email/.test(code)) return 'Enter a valid email address.';
+    if (/too-many-requests/.test(code)) return 'Too many tries. Wait a minute and try again.';
+    if (/network-request-failed/.test(code)) return 'No connection. Check the internet and try again.';
+    if (/user-disabled/.test(code)) return 'This account has been disabled.';
+    if (/operation-not-allowed|admin-restricted/.test(code)) return 'Email sign-in is not turned on for this Firebase project.';
+    if (/permission-denied/.test(code)) return 'This account is not authorized for staff access.';
+    return (error && error.message && error.code === undefined ? error.message : '') || 'Could not sign in. Try again.';
+  }
+
+  function showAuth(message) {
+    $('staff-auth').hidden = false;
+    $('staff-auth-error').textContent = message || '';
+  }
+
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
+    await initTheme();
     if (window.ORDER_BOARD_STAFF_APP && window.ORDER_BOARD_FIREBASE) {
-      $('staff-auth').hidden = false;
+      showAuth('');
       $('staff-auth-form').onsubmit = async function (event) {
         event.preventDefault();
         var button = this.querySelector('button[type="submit"]');
+        var email = $('staff-email').value.trim();
+        var password = $('staff-password').value;
+        if (!email || !password) {
+          showAuth('Enter your email and password.');
+          return;
+        }
         button.disabled = true;
         $('staff-auth-error').textContent = 'Signing in…';
         try {
-          await OBStore.signInStaff($('staff-email').value, $('staff-password').value);
+          await OBStore.signInStaff(email, password);
           $('staff-password').value = '';
           await startBoard();
         } catch (error) {
-          $('staff-auth-error').textContent = error.message || 'Could not sign in.';
+          showAuth(authMessage(error));
         } finally {
           button.disabled = false;
         }
@@ -350,7 +380,7 @@
           return;
         }
       } catch (error) {
-        $('staff-auth-error').textContent = error.message || 'Could not restore staff session.';
+        showAuth(authMessage(error));
       }
       return;
     }

@@ -112,6 +112,8 @@ jobs:
       - run: |
           ln -sfn ../../node_modules apps/student/node_modules
           ln -sfn ../../node_modules apps/staff/node_modules
+      - name: Unit tests (token rules + store)
+        run: npm test
       - run: npm run sync-shared
       - name: Build APKs
         run: |

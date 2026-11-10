@@ -570,3 +570,14 @@ body.native main{
 .staff .btnrow .btn{width:auto} /* flex items size via flex */
 .rhead .link{padding:0;min-height:44px;display:inline-flex;align-items:center}
 .mine > .sec-title.ink{padding:0;margin:0 0 var(--space-2);text-align:left;width:100%}
+
+/* Staff sign-in (Cue Staff) */
+#staff-auth .auth-panel{max-width:420px;margin:clamp(12px,6vh,48px) auto 20px}
+.auth-title{font-size:clamp(26px,7vw,34px);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:6px 0 0}
+.auth-form{display:grid;gap:16px;margin-top:20px;text-align:left}
+.auth-field{display:grid;gap:6px;font-weight:800;font-size:14px;color:var(--pi)}
+.auth-field input{width:100%;min-height:52px;padding:12px 18px;border-radius:999px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:max(16px,1.05rem);font-weight:600}
+.auth-field input:focus{outline:none;border-color:var(--red)}
+.auth-form .btn{max-width:none;margin-top:4px}
+.auth-err{min-height:1.4em;text-align:center;color:#a3001a}
+.auth-err:empty{min-height:0;margin:0}

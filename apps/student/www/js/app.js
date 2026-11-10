@@ -41,7 +41,21 @@
     }
   }
 
-  function write(n, f) { OBStore.write(n, f); }
+  var toastT = null;
+  function toast(msg) {
+    $('toastMsg').textContent = msg;
+    $('toast').hidden = false;
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { $('toast').hidden = true; }, 6000);
+  }
+
+  /** Resolves when the counter confirms; on rejection the store has rolled back, so just say so. */
+  function write(n, f) {
+    return OBStore.write(n, f).catch(function (err) {
+      toast((err && err.message) || 'Could not save. Try again.');
+      render();
+    });
+  }
   function find(n) { return OBStore.find(n); }
   function view() { return OBStore.view(EXP); }
   function myToks() { return minesCache.slice(); }
@@ -55,7 +69,9 @@
   }
 
   function handOver(n) {
-    write(n, { c: Date.now() });
+    // The rules only let a student set `c` (never before the order's `r`) on a ready order.
+    var o = find(n);
+    write(n, { c: Math.max(Date.now(), o ? o.r : 0) });
   }
 
   function startAlert(n) {
