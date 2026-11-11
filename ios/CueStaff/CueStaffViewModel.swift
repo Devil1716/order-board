@@ -143,17 +143,34 @@ public class CueStaffViewModel: ObservableObject {
         HapticsService.impact()
         Task { [weak self] in
             guard let self = self else { return }
-            let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await self.store.write(token: token, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
-            self.showToast("Token \(token) added") { [weak self] in
-                self?.undoAddToken(token)
+            do {
+                // One transaction: refuses a token that is still active, so two phones can't both add it.
+                try await self.store.issueToken(token)
+                self.showToast("Token \(token) added") { [weak self] in
+                    self?.undoAddToken(token)
+                }
+            } catch {
+                HapticsService.light()
+                self.showToast(error.localizedDescription, undo: nil)
             }
         }
     }
 
     private func undoAddToken(_ token: Int) {
         Task { [weak self] in
-            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
+            await self?.write(token, OrderWriteFields(collectedMs: Int64(Date().timeIntervalSince1970 * 1000)))
+        }
+    }
+
+    /// Writes one order change and tells staff if it didn't go through (instead of failing silently).
+    @discardableResult
+    private func write(_ token: Int, _ fields: OrderWriteFields) async -> Bool {
+        do {
+            try await store.write(token: token, fields: fields)
+            return true
+        } catch {
+            showToast("Token \(token): \(error.localizedDescription)", undo: nil)
+            return false
         }
     }
 
@@ -163,7 +180,7 @@ public class CueStaffViewModel: ObservableObject {
         Task { [weak self] in
             guard let self = self else { return }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await self.store.write(token: token, fields: OrderWriteFields(readyMs: now))
+            guard await self.write(token, OrderWriteFields(readyMs: now)) else { return }
             self.showToast("Token \(token) is ready") { [weak self] in
                 self?.undoCallReady(token)
             }
@@ -172,7 +189,7 @@ public class CueStaffViewModel: ObservableObject {
 
     private func undoCallReady(_ token: Int) {
         Task { [weak self] in
-            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(readyMs: 0))
+            await self?.write(token, OrderWriteFields(readyMs: 0))
         }
     }
 
@@ -181,7 +198,7 @@ public class CueStaffViewModel: ObservableObject {
         Task { [weak self] in
             guard let self = self else { return }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await self.store.write(token: token, fields: OrderWriteFields(collectedMs: now))
+            guard await self.write(token, OrderWriteFields(collectedMs: now)) else { return }
             self.showToast("Token \(token) taken off") { [weak self] in
                 self?.undoHandOver(token)
             }
@@ -190,7 +207,7 @@ public class CueStaffViewModel: ObservableObject {
 
     private func undoHandOver(_ token: Int) {
         Task { [weak self] in
-            _ = try? await self?.store.write(token: token, fields: OrderWriteFields(collectedMs: 0))
+            await self?.write(token, OrderWriteFields(collectedMs: 0))
         }
     }
 
@@ -255,9 +272,11 @@ public class CueStaffViewModel: ObservableObject {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         Task { [weak self] in
             guard let self = self else { return }
+            var failed = 0
             for o in readyList {
-                _ = try? await self.store.write(token: o.token, fields: OrderWriteFields(collectedMs: now))
+                if !(await self.write(o.token, OrderWriteFields(collectedMs: now))) { failed += 1 }
             }
+            if failed == readyList.count { return }
 
             let msg = readyList.count == 1
                 ? "Token \(readyList[0].token) taken off"
@@ -273,7 +292,7 @@ public class CueStaffViewModel: ObservableObject {
         Task { [weak self] in
             guard let self = self else { return }
             for o in orders {
-                _ = try? await self.store.write(token: o.token, fields: OrderWriteFields(collectedMs: 0))
+                await self.write(o.token, OrderWriteFields(collectedMs: 0))
             }
         }
     }

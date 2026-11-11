@@ -48,6 +48,8 @@ ios/CueCore/.build/
 # Firebase credentials
 GoogleService-Info.plist
 ios/GoogleService-Info.plist
+ios/GoogleService-Info-*.plist
+!ios/GoogleService-Info.plist.example
 !GoogleService-Info.plist.example
 !ios/GoogleService-Info.plist.example
 

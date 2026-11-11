@@ -6,6 +6,7 @@ struct CueStaffApp: App {
     var body: some Scene {
         WindowGroup {
             StaffSessionView()
+                .cueUpdateGate(.staff)
         }
     }
 }
