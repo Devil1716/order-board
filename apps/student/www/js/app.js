@@ -71,6 +71,7 @@
   function handOver(n) {
     // The rules only let a student set `c` (never before the order's `r`) on a ready order.
     var o = find(n);
+    if (window.OBNative) OBNative.watchClear(n);
     write(n, { c: Math.max(Date.now(), o ? o.r : 0) });
   }
 
@@ -81,7 +82,6 @@
     $('alert').hidden = false;
     document.title = 'Cue · Order ready: ' + n;
     chime(); buzz();
-    if (window.OBNative) OBNative.notifyReady(n);
     clearInterval(repeat);
     var k = 0;
     repeat = setInterval(function () {
@@ -101,6 +101,7 @@
     $('alert').hidden = true;
     clearInterval(repeat);
     document.title = 'Cue';
+    syncWatch();
   }
 
   /** Primary status labels: Preparing / You’re next / Ready */
@@ -281,6 +282,32 @@
     }
   }
 
+  /**
+   * Tell the native background watcher which tokens still need watching (so it can alert when the
+   * app is closed) and which ready times the student already acknowledged. It stops itself when
+   * nothing is left; we only re-send when something changed.
+   */
+  var lastWatch = '';
+  function syncWatch() {
+    if (!window.OBNative || !OBNative.hasWatcher() || !window.OBNotifyRules) return;
+    var cfg = window.ORDER_BOARD_FIREBASE;
+    if (!cfg || !cfg.projectId) return;
+    var now = Date.now(), tokens = [], acked = {};
+    myToks().forEach(function (n) {
+      var o = find(n);
+      var ar = ackedReady[n];
+      if (typeof ar === 'number') acked[n] = ar;
+      if (!OBNotifyRules.isActive(o, now)) return;
+      if (o && o.r && ar === o.r) return;           // already acknowledged in the app
+      tokens.push(n);
+    });
+    var payload = { projectId: cfg.projectId, apiKey: cfg.apiKey || '', tokens: tokens, acked: acked };
+    var key = JSON.stringify(payload);
+    if (key === lastWatch) return;
+    lastWatch = key;
+    OBNative.watchSync(payload);
+  }
+
   function maybeAlert(now) {
     var pending = null;
     myToks().forEach(function (n) {
@@ -312,6 +339,7 @@
 
     renderMineList(P, now);
     maybeAlert(now);
+    syncWatch();
     renderReadyStrip(R, now, tracking);
 
     $('sync').textContent = OBStore.getSyncLabel();
@@ -332,14 +360,37 @@
     });
   }
 
+  /** Explain first, then show the Android 13+ system prompt, when a student starts tracking. */
+  function askNotifyPermission() {
+    if (window.OBNative && OBNative.hasWatcher()) {
+      OBNative.requestNotifyPermission().then(function (state) {
+        if (state === 'prompt' || state === 'denied') {
+          toast('Turn on notifications to hear when your order is ready if Cue is closed.');
+        }
+      });
+      showBatteryHint();
+      return;
+    }
+    try {
+      if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+    } catch (e) {}
+  }
+
+  /** Samsung and others stop background apps; offer the one-tap "don't optimise Cue" dialog. */
+  function showBatteryHint() {
+    var b = $('battery');
+    if (!b || !window.OBNative) return;
+    OBNative.batteryStatus().then(function (r) {
+      b.hidden = !!(r && r.unrestricted);
+    });
+  }
+
   function enableAlerts() {
     alertsOn = true;
     snd = true;
     $('snd').setAttribute('aria-pressed', 'true');
     $('snd').textContent = 'Sound on';
-    try {
-      if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
-    } catch (e) {}
+    askNotifyPermission();
     if (window.OBNative) OBNative.keepAwake(true);
     else {
       try {
@@ -388,8 +439,17 @@
     }
 
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden && alertsOn && window.OBNative) OBNative.keepAwake(true);
+      if (document.hidden) return;
+      if (alertsOn && window.OBNative) OBNative.keepAwake(true);
+      // Back on screen: ready orders are shown in-app now, so drop their system notifications.
+      if (window.OBNative) OBNative.watchClearAll();
+      render();
     });
+    if ($('battery')) {
+      $('battery').onclick = function () {
+        OBNative.requestBatteryExemption().then(function () { setTimeout(showBatteryHint, 1500); });
+      };
+    }
   }
 
   async function boot() {
@@ -412,9 +472,12 @@
         $('snd').setAttribute('aria-pressed', 'true');
         $('snd').textContent = 'Sound on';
       }
-      try {
-        if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
-      } catch (e) {}
+      if (window.OBNative && OBNative.hasWatcher()) showBatteryHint();
+      else {
+        try {
+          if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+        } catch (e) {}
+      }
       if (window.OBNative) OBNative.keepAwake(true);
     }
     OBStore.onChange(function () { render(); });

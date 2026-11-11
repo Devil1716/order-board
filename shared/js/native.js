@@ -37,7 +37,30 @@
     } catch (e) {}
   }
 
+  /** Native background watcher (Cue student Android app only). */
+  function watcher() { return isNative ? plugin('CueWatch') : null; }
+
+  async function watchCall(method, args) {
+    var W = watcher();
+    if (!W || !W[method]) return null;
+    try { return await W[method](args || {}); } catch (e) { return null; }
+  }
+
+  /** Ask for the Android 13+ POST_NOTIFICATIONS permission (no-op where already granted / not needed). */
+  async function requestNotifyPermission() {
+    var N = plugin('LocalNotifications');
+    if (!N) return 'unsupported';
+    try {
+      var perm = await N.checkPermissions();
+      if (perm.display === 'granted') return 'granted';
+      perm = await N.requestPermissions();
+      return perm.display;
+    } catch (e) { return 'error'; }
+  }
+
   async function notifyReady(token) {
+    // On Android the background watcher owns system notifications (never while the app is open).
+    if (watcher()) return;
     var N = plugin('LocalNotifications');
     if (!N) {
       try {
@@ -179,6 +202,13 @@
     buzz: buzz,
     keepAwake: keepAwake,
     notifyReady: notifyReady,
+    hasWatcher: function () { return !!watcher(); },
+    watchSync: function (payload) { return watchCall('sync', payload); },
+    watchClear: function (token) { return watchCall('clear', { token: token }); },
+    watchClearAll: function () { return watchCall('clearAll'); },
+    batteryStatus: function () { return watchCall('batteryStatus'); },
+    requestBatteryExemption: function () { return watchCall('requestBatteryExemption'); },
+    requestNotifyPermission: requestNotifyPermission,
     prefsGet: prefsGet,
     prefsSet: prefsSet,
     prefsRemove: prefsRemove,
