@@ -23,5 +23,31 @@
     "providers": {
       "emailPassword": true
     }
+  },
+  "hosting": {
+    "public": "hosting-public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "/ota/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0"
+          },
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          }
+        ]
+      }
+    ]
+  },
+  "remoteconfig": {
+    "template": "remoteconfig.template.json"
   }
 }

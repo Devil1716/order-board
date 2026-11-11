@@ -558,6 +558,8 @@
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
     wireUi();
+    // UI is up: confirm this web bundle booted (else the updater rolls back), then look for an OTA update.
+    if (window.OBOta) OBOta.init(window).start();
 
     await OBNative.initTheme();
     settings = OBSettings.create({ get: OBNative.prefsGet, set: OBNative.prefsSet }, { sound: true, vibration: true });

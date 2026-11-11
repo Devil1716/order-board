@@ -52,3 +52,11 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
+// @capgo/capacitor-updater hard-codes work-runtime 2.10.x, which needs compileSdk 35. This project compiles
+// against 34, so pin the last release that does. Remove when compileSdk/AGP move to 35.
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.work:work-runtime:2.9.1'
+    }
+}
