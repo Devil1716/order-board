@@ -172,7 +172,7 @@ public class OrderWatchService extends Service {
             if (active && !(isReady && ackedR == r)) anyActive = true;
         }
         if (anyActive) {
-            String msg = ready > 0 ? "Your order is ready — collect it at the counter"
+            String msg = ready > 0 ? "Order ready — this clears once you collect it"
                     : waiting > 1 ? "Watching " + waiting + " orders — we'll alert you when ready"
                     : "Watching your order — we'll alert you when it's ready";
             NotificationManager nmgr = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
