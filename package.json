@@ -2,7 +2,7 @@
   "name": "order-board",
   "version": "1.0.0",
   "private": true,
-  "description": "Cue monorepo (order-board) \u2014 Student + Staff Capacitor apps",
+  "description": "Cue monorepo (order-board) — Student + Staff Capacitor apps",
   "workspaces": [
     "apps/student",
     "apps/staff"
@@ -15,9 +15,13 @@
     "apk": "npm run apk:student && npm run apk:staff",
     "postinstall": "ln -sfn ../../node_modules apps/student/node_modules; ln -sfn ../../node_modules apps/staff/node_modules",
     "test": "node --test tests/*.test.js",
-    "test:rules": "npx --yes firebase-tools@latest emulators:exec --only auth,firestore --project demo-cue \"node --test tests/rules.emulator.js\""
+    "test:rules": "npx --yes firebase-tools@latest emulators:exec --only auth,firestore --project demo-cue \"node --test tests/rules.emulator.js\"",
+    "release:ota": "node scripts/release-ota.js",
+    "release:ota:rollback": "node scripts/ota/publish.js --rollback",
+    "ota:build": "node scripts/ota/build-bundle.js"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.2.0"
+    "@capacitor/cli": "^6.2.0",
+    "adm-zip": "^0.5.18"
   }
 }

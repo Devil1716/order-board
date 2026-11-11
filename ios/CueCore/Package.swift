@@ -28,7 +28,6 @@ let package = Package(
         .target(
             name: "CueCore",
             dependencies: [
-                .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseAuth", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseFirestore", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseRemoteConfig", package: "firebase-ios-sdk")

@@ -69,6 +69,8 @@ apps/*/www/js/notify-rules.js
 apps/*/www/js/settings.js
 apps/*/www/js/settings-ui.js
 apps/*/www/js/native.js
+apps/*/www/js/ota.js
+apps/*/www/js/ota-config.js
 apps/*/www/js/firebase-config.js
 apps/*/www/vendor/
 
@@ -80,3 +82,7 @@ test-shots/
 !.env.example
 apps/*/node_modules
 apps/*/www/js/entry-rules.js
+
+# OTA build output (scripts/ota)
+dist/ota/
+hosting-public/

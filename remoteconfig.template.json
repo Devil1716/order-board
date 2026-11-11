@@ -1,0 +1,54 @@
+{
+  "conditions": [],
+  "parameters": {
+    "min_version_student": {
+      "defaultValue": {
+        "value": ""
+      },
+      "valueType": "STRING",
+      "description": "Force-update: iOS Cue (student) versions below this show the Update screen. Empty = off."
+    },
+    "min_version_staff": {
+      "defaultValue": {
+        "value": ""
+      },
+      "valueType": "STRING",
+      "description": "Force-update: iOS Cue Staff versions below this show the Update screen. Empty = off."
+    },
+    "update_url": {
+      "defaultValue": {
+        "value": ""
+      },
+      "valueType": "STRING",
+      "description": "https App Store / TestFlight link for the Update button."
+    },
+    "update_message": {
+      "defaultValue": {
+        "value": "A new version of Cue is required to keep working with the counter."
+      },
+      "valueType": "STRING",
+      "description": "Text on the Update screen."
+    },
+    "announcement": {
+      "defaultValue": {
+        "value": ""
+      },
+      "valueType": "STRING",
+      "description": "Optional one-line banner shown at the top of both iOS apps. Empty = hidden."
+    },
+    "ready_expiry_minutes": {
+      "defaultValue": {
+        "value": "20"
+      },
+      "valueType": "NUMBER",
+      "description": "Minutes a ready order keeps its token. Clamped to 20..120 by the app: it can lengthen the limit, never shorten it (firestore.rules holds a token for 20 min)."
+    },
+    "stale_window_hours": {
+      "defaultValue": {
+        "value": "4"
+      },
+      "valueType": "NUMBER",
+      "description": "Hours before an order is stale. Clamped to 4..24 by the app (firestore.rules uses 4 h)."
+    }
+  }
+}

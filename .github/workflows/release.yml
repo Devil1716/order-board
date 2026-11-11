@@ -1,0 +1,195 @@
+name: Release
+
+# Manual: Actions > Release > Run workflow (pick channel + what to publish).
+# Tags:   v1.2.3 -> prod, v1.2.3-beta.1 -> beta (OTA bundles + APKs + Firebase config).
+# See RELEASING.md for what each switch does and which secrets are needed.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: OTA channel
+        type: choice
+        options: [beta, prod]
+        default: beta
+      apps:
+        description: Which Android apps
+        type: choice
+        options: [both, student, staff]
+        default: both
+      publish_ota:
+        description: Publish web-bundle (OTA) update for the Android apps
+        type: boolean
+        default: true
+      deploy_firebase:
+        description: Deploy Firestore rules/indexes and publish Remote Config
+        type: boolean
+        default: false
+      build_apks:
+        description: Build Android APKs (needed only when native code changed)
+        type: boolean
+        default: false
+      build_ios:
+        description: Build iOS (simulator build + unit tests; needed only when native code changed)
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.event.inputs.channel || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.p.outputs.channel }}
+      apps: ${{ steps.p.outputs.apps }}
+      publish_ota: ${{ steps.p.outputs.publish_ota }}
+      deploy_firebase: ${{ steps.p.outputs.deploy_firebase }}
+      build_apks: ${{ steps.p.outputs.build_apks }}
+      build_ios: ${{ steps.p.outputs.build_ios }}
+    steps:
+      - id: p
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          IN_CHANNEL: ${{ github.event.inputs.channel }}
+          IN_APPS: ${{ github.event.inputs.apps }}
+          IN_OTA: ${{ github.event.inputs.publish_ota }}
+          IN_FB: ${{ github.event.inputs.deploy_firebase }}
+          IN_APK: ${{ github.event.inputs.build_apks }}
+          IN_IOS: ${{ github.event.inputs.build_ios }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "push" ]; then
+            case "$REF_NAME" in *-beta*) CH=beta ;; *) CH=prod ;; esac
+            { echo "channel=$CH"; echo "apps=both"; echo "publish_ota=true"; echo "deploy_firebase=true"; echo "build_apks=true"; echo "build_ios=false"; } >> "$GITHUB_OUTPUT"
+          else
+            { echo "channel=$IN_CHANNEL"; echo "apps=$IN_APPS"; echo "publish_ota=$IN_OTA"; echo "deploy_firebase=$IN_FB"; echo "build_apks=$IN_APK"; echo "build_ios=$IN_IOS"; } >> "$GITHUB_OUTPUT"
+          fi
+          echo "Release plan: channel=$(grep '^channel=' "$GITHUB_OUTPUT" | cut -d= -f2)"
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - run: npm ci
+      - run: npm test
+      - name: Firestore rules tests (emulator)
+        run: npm run test:rules
+
+  ota:
+    name: Publish OTA (${{ needs.plan.outputs.channel }})
+    needs: [plan, test]
+    if: needs.plan.outputs.publish_ota == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # creates the GitHub Release that hosts the bundle zips
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm }
+      - run: npm ci
+      - name: Firebase credentials
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error title=Missing secret::FIREBASE_SERVICE_ACCOUNT (service-account JSON) is not set; see RELEASING.md"
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-sa.json" >> "$GITHUB_ENV"
+      - name: Build bundles, create releases, deploy manifests
+        run: >
+          npm run release:ota --
+          --channel "${{ needs.plan.outputs.channel }}"
+          --apps "${{ needs.plan.outputs.apps }}"
+          --skip-tests
+          --notes "Built from ${{ github.sha }} (${{ github.ref_name }})"
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-sa.json"
+
+  firebase:
+    name: Deploy Firestore rules + Remote Config
+    needs: [plan, test]
+    if: needs.plan.outputs.deploy_firebase == 'true'
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error title=Missing secret::FIREBASE_SERVICE_ACCOUNT (service-account JSON) is not set; see RELEASING.md"
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx --yes firebase-tools@latest deploy --only firestore:rules,firestore:indexes,remoteconfig --project cue-orderboard-sharan --non-interactive
+          rm -f "$RUNNER_TEMP/firebase-sa.json"
+
+  android:
+    name: Android APKs (${{ needs.plan.outputs.channel }})
+    needs: [plan, test]
+    if: needs.plan.outputs.build_apks == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      OTA_CHANNEL: ${{ needs.plan.outputs.channel }}      # baked in as the channel these APKs follow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - run: npm ci
+      - run: npm run sync-shared
+      - name: Build APKs
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for a in student staff; do
+            (cd apps/$a && npx cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon)
+            cp apps/$a/android/app/build/outputs/apk/debug/app-debug.apk "out/Cue-$a-${OTA_CHANNEL}-${GITHUB_SHA::7}.apk"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cue-android-apks-${{ needs.plan.outputs.channel }}
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Attach APKs to the tag's GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          FLAGS="--generate-notes"
+          [ "$OTA_CHANNEL" = "beta" ] && FLAGS="$FLAGS --prerelease"
+          gh release create "$GITHUB_REF_NAME" out/*.apk $FLAGS
+
+  ios:
+    name: iOS build + tests
+    needs: [plan, test]
+    if: needs.plan.outputs.build_ios == 'true'
+    uses: ./.github/workflows/ios.yml
+    secrets: inherit

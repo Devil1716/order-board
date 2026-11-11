@@ -561,6 +561,8 @@
     var initP = OBStore.init().catch(function () {});
     var chromeP = window.OBNative ? OBNative.setupChrome() : Promise.resolve();
     wireUi();
+    // UI is up: confirm this web bundle booted (else the updater rolls back), then look for an OTA update.
+    if (window.OBOta) OBOta.init(window).start();
 
     settings = OBSettings.create({ get: OBNative.prefsGet, set: OBNative.prefsSet }, { sound: true, vibration: true });
     var loaded = await Promise.all([

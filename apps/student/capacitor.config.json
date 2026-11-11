@@ -18,6 +18,12 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon_config_sample",
       "iconColor": "#e60023"
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "appReadyTimeout": 10000,
+      "resetWhenUpdate": true,
+      "responseTimeout": 20
     }
   }
 }

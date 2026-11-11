@@ -2,7 +2,7 @@
   "name": "order-board-student",
   "version": "1.0.0",
   "private": true,
-  "description": "Order Board \u2014 student / customer display",
+  "description": "Order Board — student / customer display",
   "scripts": {
     "sync": "node ../../scripts/sync-shared.js && npx cap sync",
     "apk": "cd android && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../../../dist/OrderBoard-student-debug.apk"
@@ -18,6 +18,7 @@
     "@capacitor/preferences": "^6.0.3",
     "@capacitor/splash-screen": "^6.0.3",
     "@capacitor/status-bar": "^6.0.2",
+    "@capgo/capacitor-updater": "6.14.36",
     "firebase": "^10.14.1"
   },
   "devDependencies": {
