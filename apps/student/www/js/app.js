@@ -2,6 +2,9 @@
   var EXP = 20;
   var snd = true, ac = null, alertsOn = false;
   var settings = null, settingsUI = null;
+  var uiReady = false, prevKinds = {};
+  var notifyState = 'unsupported', notifyDismissed = false, NOTIFY_DISMISS_KEY = 'ob-notify-dismissed';
+  var MAX_TOKEN = 200;
   var APP_VERSION = '1.1.0';
   var first = true, lastReadySig = null;
   var minesCache = [];
@@ -37,12 +40,22 @@
     }
   }
 
-  var toastT = null;
-  function toast(msg) {
+  var toastT = null, undoFn = null;
+  function toast(msg, fn) {
     $('toastMsg').textContent = msg;
+    undoFn = fn || null;
+    $('undo').hidden = !fn;
+    $('toast').classList.toggle('has-undo', !!fn);
     $('toast').hidden = false;
     clearTimeout(toastT);
-    toastT = setTimeout(function () { $('toast').hidden = true; }, 6000);
+    toastT = setTimeout(function () { $('toast').hidden = true; undoFn = null; }, fn ? 8000 : 6000);
+  }
+
+  /** Screen-reader announcement for a status change (kept out of the visual UI). */
+  function announce(msg) {
+    var el = $('announce');
+    el.textContent = '';
+    setTimeout(function () { el.textContent = msg; }, 50);
   }
 
   /** Resolves when the counter confirms; on rejection the store has rolled back, so just say so. */
@@ -76,6 +89,7 @@
     alertToken = n;
     $('alN').textContent = n;
     $('alert').hidden = false;
+    try { $('alert').focus(); } catch (e) {}
     document.title = 'Cue · Order ready: ' + n;
     chime(); buzz();
     clearInterval(repeat);
@@ -98,6 +112,11 @@
     clearInterval(repeat);
     document.title = 'Cue';
     syncWatch();
+  }
+
+  /** Progress step for a token: 0 Preparing, 1 Ready, 2 Collected. */
+  function stepFor(kind) {
+    return kind === 'ready' || kind === 'timeout' ? 1 : kind === 'done' ? 2 : 0;
   }
 
   /** Primary status labels: Preparing / You’re next / Ready */
@@ -166,28 +185,66 @@
     };
   }
 
+  var STEP_LABELS = ['Preparing', 'Ready', 'Collected'];
+
+  function stepsEl(step) {
+    var ol = document.createElement('ol');
+    ol.className = 'steps';
+    ol.setAttribute('aria-label', 'Order progress: ' + STEP_LABELS[step]);
+    STEP_LABELS.forEach(function (label, i) {
+      var li = document.createElement('li');
+      li.className = i < step ? 'done' : i === step ? 'current' : '';
+      if (i === step) li.setAttribute('aria-current', 'step');
+      li.textContent = label;
+      ol.appendChild(li);
+    });
+    return ol;
+  }
+
+  function removeToken(n) {
+    var acked = ackedReady[n];
+    OBStore.removeMine(n).then(function (next) {
+      minesCache = next;
+      if (alertToken === n) stopAlert();
+      delete ackedReady[n];
+      render();
+      toast('Token ' + n + ' removed.', function () {
+        OBStore.addMine(n).then(function (list) {
+          minesCache = list;
+          if (acked !== undefined) ackedReady[n] = acked;
+          render();
+        });
+      });
+    });
+  }
+
   function renderMineList(P, now) {
     var list = myToks();
     var wrap = $('mineList');
-    var anyReady = false;
     wrap.innerHTML = '';
 
     list.forEach(function (n) {
       var st = tokenState(n, P, now);
-      if (st.isReady) anyReady = true;
       var card = document.createElement('div');
-      card.className = 'mine-card' + (st.isReady ? ' isready' : '');
+      card.className = 'mine-card kind-' + st.kind + (st.isReady ? ' isready' : '');
       card.setAttribute('data-token', String(n));
+
+      card.appendChild(stepsEl(stepFor(st.kind)));
 
       var head = document.createElement('div');
       head.className = 'mine-card-head';
-      head.innerHTML = '<p class="lbl-tok">Token</p><div class="mytok">' + n + '</div>';
+      head.innerHTML = '<p class="lbl-tok">Token</p><div class="mytok" aria-label="Token ' + n + '">' + n + '</div>';
       card.appendChild(head);
 
       var s = document.createElement('p');
       s.className = 'status' + (st.isReady ? ' ready' : '');
-      s.textContent = st.status;
+      s.textContent = st.isReady ? 'Ready — collect it now' : st.status;
       card.appendChild(s);
+
+      var u = document.createElement('p');
+      u.className = 'detail';
+      u.textContent = st.sub;
+      card.appendChild(u);
 
       if (st.age) {
         var age = document.createElement('p');
@@ -196,11 +253,6 @@
         card.appendChild(age);
       }
 
-      var u = document.createElement('p');
-      u.className = 'sub';
-      u.textContent = st.sub;
-      card.appendChild(u);
-
       var row = document.createElement('div');
       row.className = 'btnrow';
 
@@ -208,29 +260,29 @@
         var cb = document.createElement('button');
         cb.className = 'btn red';
         cb.type = 'button';
-        cb.textContent = 'I’ve collected';
+        cb.textContent = 'I’ve collected it';
         cb.onclick = function () { handOver(n); };
         row.appendChild(cb);
       }
 
       var rm = document.createElement('button');
-      rm.className = 'btn' + (st.showCollect ? ' ghost' : '');
+      rm.className = 'btn ghost';
       rm.type = 'button';
-      rm.textContent = 'Remove';
-      rm.onclick = function () {
-        OBStore.removeMine(n).then(function (next) {
-          minesCache = next;
-          if (alertToken === n) stopAlert();
-          delete ackedReady[n];
-          render();
-        });
-      };
+      rm.textContent = st.kind === 'done' ? 'Done' : 'Remove';
+      rm.setAttribute('aria-label', (st.kind === 'done' ? 'Done with token ' : 'Remove token ') + n);
+      rm.onclick = function () { removeToken(n); };
       row.appendChild(rm);
       card.appendChild(row);
       wrap.appendChild(card);
+
+      // Tell screen readers when a token's status changes (not on every refresh).
+      if (prevKinds[n] !== undefined && prevKinds[n] !== st.kind) {
+        announce('Token ' + n + ': ' + (st.isReady ? 'ready. Collect it at the counter.' : st.status + '. ' + st.sub));
+      }
+      prevKinds[n] = st.kind;
     });
 
-    $('mine').className = 'mine' + (anyReady ? ' isready' : '');
+    $('mine').className = 'mine';
     var title = $('mineTitle');
     if (title) {
       title.textContent = list.length === 1 ? 'Your order' : 'Your orders';
@@ -321,12 +373,23 @@
     }
   }
 
+  var retrying = false;
+  function renderNet() {
+    var bad = OBStore.getSyncState() === 'offline';
+    $('netBanner').hidden = !bad;
+    if (bad && !retrying) $('retryBtn').textContent = 'Retry';
+  }
+
   function render() {
+    if (!uiReady) return;
     var V = view(), P = V.prep, R = V.rd, now = Date.now();
     var tracking = myToks().length > 0;
 
+    $('skeleton').hidden = true;
     $('focusEmpty').hidden = tracking;
     $('mine').hidden = !tracking;
+    document.body.classList.toggle('has-cta', !tracking);
+    renderNet();
 
     // Soft chime when a new public ready appears (not mine)
     var sig = R.length ? R[0].n + '|' + R[0].r : null;
@@ -338,39 +401,79 @@
     syncWatch();
     renderReadyStrip(R, now, tracking);
 
-    var syncLbl = OBStore.getSyncLabel();
-    $('sync').textContent = /^Live/.test(syncLbl) ? '' : syncLbl;
+    $('sync').textContent = OBStore.getSyncState() === 'local' ? OBStore.getSyncLabel() : '';
     first = false;
   }
 
-  function trackFrom(inputId) {
-    var n = parseInt($(inputId).value, 10);
-    if (!n || n < 1) return;
+  function fieldMsg(id, text, kind) {
+    var el = $(id);
+    el.textContent = text || '';
+    el.className = 'field-msg' + (text ? ' ' + (kind || 'error') : '');
+  }
+
+  function checkEntry(raw) {
+    var n = parseInt(OBEntryRules.digitsOf(raw), 10);
+    return OBEntryRules.validateToken(raw, {
+      mines: myToks(), order: n ? find(n) : null, max: MAX_TOKEN
+    });
+  }
+
+  function trackFrom(inputId, msgId) {
+    var input = $(inputId);
+    var res = checkEntry(input.value);
+    if (!res.ok) {
+      fieldMsg(msgId, res.message, 'error');
+      input.setAttribute('aria-invalid', 'true');
+      input.focus();
+      return;
+    }
+    input.removeAttribute('aria-invalid');
+    fieldMsg(msgId, '', '');
+    var n = res.token;
     var wasEmpty = minesCache.length === 0;
     OBStore.addMine(n).then(function (list) {
       minesCache = list;
-      $(inputId).value = '';
-      if ($('tokIn')) $('tokIn').value = '';
-      if ($('tokInEmpty')) $('tokInEmpty').value = '';
+      $('tokIn').value = '';
+      $('tokInEmpty').value = '';
+      input.blur();
+      if (res.note) toast(res.note);
       if (wasEmpty || !alertsOn) enableAlerts();
       else render();
     });
   }
 
-  /** Explain first, then show the Android 13+ system prompt, when a student starts tracking. */
+  /** While typing: clear the error, and show a gentle note once the number is complete. */
+  function liveEntry(input, msgId) {
+    input.removeAttribute('aria-invalid');
+    var raw = input.value;
+    if (!raw) { fieldMsg(msgId, '', ''); return; }
+    var res = checkEntry(raw);
+    if (res.ok && res.note) fieldMsg(msgId, res.note, 'note');
+    else if (!res.ok && res.code === 'range') fieldMsg(msgId, res.message, 'error');
+    else fieldMsg(msgId, '', '');
+  }
+
+  /* —— Notification permission: explain first, ask when it matters (after the first order). —— */
+  function refreshNotifyCard() {
+    if (!window.OBNative) return Promise.resolve();
+    return OBNative.notifyStatus().then(function (st) {
+      notifyState = st;
+      var show = myToks().length > 0 && !notifyDismissed && (st === 'prompt' || st === 'denied');
+      $('notifyCard').hidden = !show;
+      if (show) {
+        var denied = st === 'denied';
+        $('notifyTitle').textContent = denied ? 'Notifications are off' : 'Get alerted when it’s ready';
+        $('notifySub').textContent = denied
+          ? 'Turn them on in system settings so you hear about it even if Cue is closed.'
+          : 'Allow notifications so you hear about it even if Cue is closed.';
+        $('notifyAllow').textContent = denied ? 'Open settings' : 'Allow notifications';
+      }
+    });
+  }
+
   function askNotifyPermission() {
-    if (window.OBNative && OBNative.hasWatcher()) {
-      OBNative.requestNotifyPermission().then(function (state) {
-        if (state === 'prompt' || state === 'denied') {
-          toast('Turn on notifications to hear when your order is ready if Cue is closed.');
-        }
-      });
-      showBatteryHint();
-      return;
-    }
-    try {
-      if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
-    } catch (e) {}
+    refreshNotifyCard();
+    showBatteryHint();
   }
 
   /** Samsung and others stop background apps: Settings offers the one-tap "don't optimise Cue" dialog. */
@@ -397,12 +500,36 @@
   }
 
   function wireUi() {
-    $('getTok').onclick = function () { trackFrom('tokIn'); };
-    $('getTokEmpty').onclick = function () { trackFrom('tokInEmpty'); };
+    $('getTok').onclick = function () { trackFrom('tokIn', 'msgAdd'); };
+    $('getTokEmpty').onclick = function () { trackFrom('tokInEmpty', 'msgEmpty'); };
+    $('tokIn').addEventListener('input', function () { liveEntry(this, 'msgAdd'); });
+    $('tokInEmpty').addEventListener('input', function () { liveEntry(this, 'msgEmpty'); });
+    $('undo').onclick = function () {
+      $('toast').hidden = true;
+      var fn = undoFn; undoFn = null;
+      if (fn) fn();
+    };
+    $('retryBtn').onclick = function () {
+      if (retrying) return;
+      retrying = true;
+      this.textContent = 'Retrying…';
+      OBStore.retry().then(function () {
+        setTimeout(function () { retrying = false; renderNet(); }, 1200);
+      });
+    };
+    $('notifyAllow').onclick = function () {
+      if (notifyState === 'denied') OBNative.openNotificationSettings();
+      else OBNative.requestNotifyPermission().then(function () { setTimeout(refreshNotifyCard, 400); if (settingsUI) settingsUI.refresh(); });
+    };
+    $('notifyLater').onclick = function () {
+      notifyDismissed = true;
+      OBNative.prefsSet(NOTIFY_DISMISS_KEY, '1');
+      $('notifyCard').hidden = true;
+    };
     wireInput($('tokIn'));
     wireInput($('tokInEmpty'));
-    $('tokIn').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') trackFrom('tokIn'); });
-    $('tokInEmpty').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') trackFrom('tokInEmpty'); });
+    $('tokIn').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') trackFrom('tokIn', 'msgAdd'); });
+    $('tokInEmpty').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') trackFrom('tokInEmpty', 'msgEmpty'); });
     $('gotit').onclick = function () {
       stopAlert();
       render();
@@ -412,6 +539,7 @@
       if (alertsOn && window.OBNative) OBNative.keepAwake(true);
       // Back on screen: ready orders are shown in-app now, so drop their system notifications.
       if (window.OBNative) OBNative.watchClearAll();
+      refreshNotifyCard();
       render();
     });
   }
@@ -431,19 +559,18 @@
       onChange: function (key, on) { if (key === 'sound') { snd = on; if (on) chime(); } }
     });
     minesCache = await OBStore.getMines();
+    notifyDismissed = (await OBNative.prefsGet(NOTIFY_DISMISS_KEY)) === '1';
     if (minesCache.length && !alertsOn) {
       alertsOn = true;
-      if (window.OBNative && OBNative.hasWatcher()) showBatteryHint();
-      else {
-        try {
-          if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
-        } catch (e) {}
-      }
       if (window.OBNative) OBNative.keepAwake(true);
     }
     OBStore.onChange(function () { render(); });
-    await OBStore.init();
+    // Show the skeleton while the counter connects, but never leave the screen blank for long.
+    await Promise.race([OBStore.init(), new Promise(function (r) { setTimeout(r, 3000); })]);
+    uiReady = true;
     render();
+    refreshNotifyCard();
+    showBatteryHint();
     setInterval(render, 30000);
   }
 

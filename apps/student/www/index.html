@@ -22,28 +22,57 @@
 </header>
 <main>
   <section id="v-cust">
-    <!-- Empty: one focused job — enter token -->
-    <div class="focus-empty" id="focusEmpty">
-      <h1 class="focus-title">Enter your token</h1>
-      <p class="focus-why">We’ll tell you when your food is ready.</p>
-      <input class="tokin" id="tokInEmpty" type="text" inputmode="numeric" maxlength="4" placeholder="000" aria-label="Your token number" autocomplete="off">
-      <button class="btn red" id="getTokEmpty">Track my order</button>
+    <!-- Can't reach the counter: friendly message + retry -->
+    <div class="net" id="netBanner" hidden>
+      <p class="net-text">Can’t reach the counter right now. Your token is saved and we’ll keep trying.</p>
+      <button class="pill-btn" id="retryBtn" type="button">Retry</button>
+    </div>
+
+    <!-- Loading -->
+    <div class="skel" id="skeleton" aria-hidden="true">
+      <div class="skel-bar skel-h"></div>
+      <div class="skel-card"><div class="skel-bar skel-s"></div><div class="skel-bar skel-n"></div><div class="skel-bar skel-m"></div></div>
+    </div>
+
+    <!-- Empty: one focused job — enter your token -->
+    <div class="focus-empty" id="focusEmpty" hidden>
+      <h1 class="focus-title">Track your order</h1>
+      <p class="focus-why">Enter the token number on your receipt.</p>
+      <label class="sr-only" for="tokInEmpty">Your token number</label>
+      <input class="tokin" id="tokInEmpty" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" maxlength="3" placeholder="000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="msgEmpty">
+      <p class="field-msg" id="msgEmpty" role="alert"></p>
+      <ol class="how">
+        <li><span class="how-n">1</span>We watch the counter for you.</li>
+        <li><span class="how-n">2</span>You get an alert the moment it’s ready. Keep Cue open or allow notifications.</li>
+        <li><span class="how-n">3</span>Show your number at the counter.</li>
+      </ol>
+      <div class="cta-bar"><button class="btn red big" id="getTokEmpty" type="button">Track my order</button></div>
     </div>
 
     <!-- Tracking: my orders are the product -->
     <div class="mine" id="mine" hidden>
       <h2 class="sec-title ink" id="mineTitle">Your orders</h2>
       <div class="mine-list" id="mineList"></div>
+
+      <div class="notify-card" id="notifyCard" hidden>
+        <p class="notify-title" id="notifyTitle">Get alerted when it’s ready</p>
+        <p class="notify-sub" id="notifySub">Allow notifications so you hear about it even if Cue is closed.</p>
+        <div class="btnrow">
+          <button class="btn red" id="notifyAllow" type="button">Allow notifications</button>
+          <button class="btn ghost" id="notifyLater" type="button">Not now</button>
+        </div>
+      </div>
+
       <div class="add-more" id="addTok">
-        <p class="status" id="addTitle">Add another</p>
-        <p class="sub" id="addSub">Same counter, another token.</p>
-        <input class="tokin" id="tokIn" type="text" inputmode="numeric" maxlength="4" placeholder="000" aria-label="Another token number" autocomplete="off">
-        <button class="btn red" id="getTok">Add order</button>
+        <label class="status" id="addTitle" for="tokIn">Add another</label>
+        <input class="tokin" id="tokIn" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" maxlength="3" placeholder="000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="msgAdd">
+        <button class="btn red" id="getTok" type="button">Add order</button>
+        <p class="field-msg" id="msgAdd" role="alert"></p>
       </div>
     </div>
 
     <!-- Secondary context: compact ready strip (not a masonry wall) -->
-    <div class="ready-context" id="readyContext">
+    <div class="ready-context" id="readyContext" hidden>
       <h2 class="sec-title" id="readyTitle">What’s ready</h2>
       <div class="strip" id="strip"></div>
     </div>
@@ -73,13 +102,14 @@
     </div>
   </section>
 </main>
-<div class="alert" id="alert" role="alertdialog" aria-labelledby="alH" hidden>
+<div class="alert" id="alert" role="alertdialog" aria-modal="true" aria-labelledby="alH" tabindex="-1" hidden>
   <h1 id="alH">Your order is ready</h1>
   <div class="n" id="alN">0</div>
   <p>Please collect it from the counter.</p>
   <button class="btn" id="gotit">Got it</button>
 </div>
-<div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span></div>
+<div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span><button id="undo" type="button" hidden>Undo</button></div>
+<div class="sr-only" id="announce" role="status" aria-live="polite"></div>
 <script src="vendor/capacitor.js"></script>
 <script src="vendor/app.js"></script>
 <script src="vendor/haptics.js"></script>
@@ -92,6 +122,7 @@
 <script src="js/native.js"></script>
 <script src="js/token-rules.js"></script>
 <script src="js/notify-rules.js"></script>
+<script src="js/entry-rules.js"></script>
 <script src="js/store.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/settings-ui.js"></script>

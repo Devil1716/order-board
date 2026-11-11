@@ -77,3 +77,4 @@ test-shots/
 .env.*
 !.env.example
 apps/*/node_modules
+apps/*/www/js/entry-rules.js

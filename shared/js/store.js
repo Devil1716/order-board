@@ -333,6 +333,22 @@
     },
     getOrders: function () { return orders.slice(); },
     getSyncLabel: function () { return syncLabel; },
+    /** 'local' (no Firebase) | 'connecting' | 'live' | 'offline' (can't reach the counter). */
+    getSyncState: function () {
+      if (!global.ORDER_BOARD_FIREBASE) return 'local';
+      if (syncLabel === LABEL_LIVE) return 'live';
+      if (syncLabel === LABEL_LOCAL) return 'connecting';
+      return 'offline';
+    },
+    /** Try again after an offline / error state. */
+    retry: async function () {
+      if (fb) {
+        try { await fb.fs.enableNetwork(fb.db); } catch (e) {}
+      } else {
+        await initFirebase();
+      }
+      emit();
+    },
     isFirebase: function () { return !!fb; },
     restoreStaffSession: restoreStaffSession,
     signInStaff: signInStaff,
