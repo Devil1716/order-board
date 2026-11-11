@@ -133,7 +133,7 @@
         isReady: true,
         status: 'Ready',
         sub: 'Collect it at the counter.',
-        age: 'Ready ' + fmtAge(now - o.r),
+        age: (now - o.r < 60000) ? 'Just now' : fmtAge(now - o.r) + ' ago',
         showCollect: true,
         kind: 'ready'
       };

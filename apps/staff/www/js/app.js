@@ -176,7 +176,7 @@
     $('prepH').textContent = P.length ? ('Up next · ' + P.length) : 'Up next';
     $('prepHint').textContent = q
       ? 'Filtered to “' + q + '”.'
-      : (P.length ? 'Red tile is oldest — tap it when ready.' : 'Quiet for now.');
+      : (P.length ? 'Oldest first — tap a token when it is ready.' : 'Quiet for now.');
     var tl = $('tiles'); tl.innerHTML = '';
     if (!PP.length) {
       tl.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">' +
@@ -206,7 +206,7 @@
     mp.textContent = showAllP ? 'Show fewer' : 'Show all ' + PP.length;
 
     $('offWrap').hidden = !R.length;
-    $('readyH').textContent = R.length ? ('Ready — tap when handed over · ' + R.length) : 'Ready — tap when handed over';
+    $('readyH').textContent = R.length ? ('Ready · ' + R.length) : 'Ready';
     var ot = $('offTiles'); ot.innerHTML = '';
     (q || showAllR ? RR : RR.slice(0, LIM)).forEach(function (h) {
       var b = document.createElement('button');
