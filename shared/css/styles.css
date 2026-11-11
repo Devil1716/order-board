@@ -320,6 +320,17 @@ body.settings-open main>section:not(#v-settings){display:none!important}
 .switch[aria-checked="true"]::before{background:var(--red)}
 .switch[aria-checked="true"]::after{transform:translateX(20px)}
 
+/* Settings keeps its original grouped look (soft grey page, white cards, soft shadow).
+   Scoped to the settings screen, so the main screens keep the single clean surface. */
+body.settings-open{--bg:#f3f3f4;--surface:#ffffff;--fill:#ececee;--fill-2:#e1e1e4;--line:rgba(17,17,19,.09);
+  --shadow:0 1px 2px rgba(17,17,19,.05),0 6px 20px rgba(17,17,19,.04)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) body.settings-open{--bg:#0c0c0e;--surface:#1a1a1d;--fill:#2a2a2e;--fill-2:#36363b;--line:rgba(255,255,255,.09);--shadow:none}
+}
+:root[data-theme="dark"] body.settings-open{--bg:#0c0c0e;--surface:#1a1a1d;--fill:#2a2a2e;--fill-2:#36363b;--line:rgba(255,255,255,.09);--shadow:none}
+:root[data-theme="light"] body.settings-open{--bg:#f3f3f4;--surface:#ffffff;--fill:#ececee;--fill-2:#e1e1e4;--line:rgba(17,17,19,.09);
+  --shadow:0 1px 2px rgba(17,17,19,.05),0 6px 20px rgba(17,17,19,.04)}
+
 /* motion */
 @keyframes shimmer{0%,100%{opacity:1}50%{opacity:.55}}
 @keyframes pop{0%{transform:scale(.8);opacity:.3}100%{transform:scale(1);opacity:1}}
