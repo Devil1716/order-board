@@ -126,25 +126,12 @@ public struct StudentTrackingListView: View {
 
             // Card Actions Row
             HStack(spacing: 10) {
-                if state.showCollect {
-                    Button {
-                        viewModel.markCollected(token)
-                    } label: {
-                        Text("I’ve collected")
-                            .font(.system(size: 16, weight: .heavy))
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(CueTheme.red)
-                            .foregroundColor(CueTheme.redInk)
-                            .clipShape(Capsule())
-                    }
-                }
-
                 Button {
                     viewModel.removeTrackedToken(token)
                 } label: {
                     Text("Remove")
                         .font(.system(size: 15, weight: .bold))
-                        .frame(maxWidth: state.showCollect ? 120 : .infinity, minHeight: 48)
+                        .frame(maxWidth: .infinity, minHeight: 48)
                         .background(CueTheme.bg(for: colorScheme))
                         .foregroundColor(CueTheme.ink(for: colorScheme))
                         .clipShape(Capsule())

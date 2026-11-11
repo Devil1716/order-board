@@ -77,13 +77,6 @@
     return m + ' min';
   }
 
-  function handOver(n) {
-    // The rules only let a student set `c` (never before the order's `r`) on a ready order.
-    var o = find(n);
-    if (window.OBNative) OBNative.watchClear(n);
-    write(n, { c: Math.max(Date.now(), o ? o.r : 0) });
-  }
-
   function startAlert(n) {
     dismissed = false;
     alertToken = n;
@@ -147,9 +140,9 @@
       return {
         isReady: true,
         status: 'Ready',
-        sub: 'Collect it at the counter.',
+        sub: 'Show your token at the counter.',
         age: (now - o.r < 60000) ? 'Just now' : fmtAge(now - o.r) + ' ago',
-        showCollect: true,
+        showCollect: false,
         kind: 'ready'
       };
     }
@@ -267,17 +260,6 @@
 
       card.appendChild(stepsEl(stepFor(st.kind)));
 
-      if (st.showCollect) {
-        var row = document.createElement('div');
-        row.className = 'btnrow';
-        var cb = document.createElement('button');
-        cb.className = 'btn red';
-        cb.type = 'button';
-        cb.textContent = 'I’ve collected it';
-        cb.onclick = function () { handOver(n); };
-        row.appendChild(cb);
-        card.appendChild(row);
-      }
       wrap.appendChild(card);
 
       // Tell screen readers when a token's status changes (not on every refresh).
