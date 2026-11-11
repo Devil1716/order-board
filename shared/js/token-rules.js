@@ -50,7 +50,7 @@
   function entryState(n, order, now, fmt) {
     fmt = fmt || clock;
     if (!n) return { kind: 'empty', blocked: false };
-    if (!isValidToken(n)) return { kind: 'invalid', blocked: true, n: n, message: 'Token must be between 1 and ' + MAX_TOKEN + '.' };
+    if (!isValidToken(n)) return { kind: 'invalid', blocked: true, n: n, message: 'Check the token number.' };
     if (isTaken(order, now)) {
       var ready = (+order.r || 0) > 0;
       var since = ready ? +order.r : +order.t;

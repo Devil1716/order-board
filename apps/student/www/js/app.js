@@ -223,56 +223,61 @@
     var wrap = $('mineList');
     wrap.innerHTML = '';
 
+    var multi = list.length > 1;
+    wrap.className = 'mine-list' + (multi ? ' multi' : '');
+
     list.forEach(function (n) {
       var st = tokenState(n, P, now);
       var card = document.createElement('div');
-      card.className = 'mine-card kind-' + st.kind + (st.isReady ? ' isready' : '');
+      card.className = 'mine-card kind-' + st.kind + (st.isReady ? ' isready' : '') + (multi && !st.isReady ? ' compact' : '');
       card.setAttribute('data-token', String(n));
+
+      var top = document.createElement('div');
+      top.className = 'card-top';
+      var lbl = document.createElement('span');
+      lbl.className = 'lbl-tok';
+      lbl.textContent = 'Token';
+      var rm = document.createElement('button');
+      rm.className = 'rm-btn';
+      rm.type = 'button';
+      rm.textContent = st.kind === 'done' ? 'Done' : 'Remove';
+      rm.setAttribute('aria-label', (st.kind === 'done' ? 'Done with token ' : 'Remove token ') + n);
+      rm.onclick = function () { removeToken(n); };
+      top.appendChild(lbl);
+      top.appendChild(rm);
+      card.appendChild(top);
+
+      var num = document.createElement('div');
+      num.className = 'mytok';
+      num.setAttribute('aria-label', 'Token ' + n);
+      num.textContent = n;
+      card.appendChild(num);
+
+      var text = document.createElement('div');
+      text.className = 'card-text';
+      var s1 = document.createElement('p');
+      s1.className = 'status' + (st.isReady ? ' ready' : '');
+      s1.textContent = st.isReady ? 'Ready — collect it now' : st.status;
+      var d = document.createElement('p');
+      d.className = 'detail';
+      d.textContent = [String(st.sub || '').replace(/\.$/, ''), st.age].filter(Boolean).join(' · ');
+      text.appendChild(s1);
+      text.appendChild(d);
+      card.appendChild(text);
 
       card.appendChild(stepsEl(stepFor(st.kind)));
 
-      var head = document.createElement('div');
-      head.className = 'mine-card-head';
-      head.innerHTML = '<p class="lbl-tok">Token</p><div class="mytok" aria-label="Token ' + n + '">' + n + '</div>';
-      card.appendChild(head);
-
-      var s = document.createElement('p');
-      s.className = 'status' + (st.isReady ? ' ready' : '');
-      s.textContent = st.isReady ? 'Ready — collect it now' : st.status;
-      card.appendChild(s);
-
-      var u = document.createElement('p');
-      u.className = 'detail';
-      u.textContent = st.sub;
-      card.appendChild(u);
-
-      if (st.age) {
-        var age = document.createElement('p');
-        age.className = 'age';
-        age.textContent = st.age;
-        card.appendChild(age);
-      }
-
-      var row = document.createElement('div');
-      row.className = 'btnrow';
-
       if (st.showCollect) {
+        var row = document.createElement('div');
+        row.className = 'btnrow';
         var cb = document.createElement('button');
         cb.className = 'btn red';
         cb.type = 'button';
         cb.textContent = 'I’ve collected it';
         cb.onclick = function () { handOver(n); };
         row.appendChild(cb);
+        card.appendChild(row);
       }
-
-      var rm = document.createElement('button');
-      rm.className = 'btn ghost';
-      rm.type = 'button';
-      rm.textContent = st.kind === 'done' ? 'Done' : 'Remove';
-      rm.setAttribute('aria-label', (st.kind === 'done' ? 'Done with token ' : 'Remove token ') + n);
-      rm.onclick = function () { removeToken(n); };
-      row.appendChild(rm);
-      card.appendChild(row);
       wrap.appendChild(card);
 
       // Tell screen readers when a token's status changes (not on every refresh).
@@ -289,29 +294,20 @@
     }
   }
 
+  var readyOpen = null;   // null = default (open on the entry screen, collapsed while tracking)
+
   function renderReadyStrip(R, now, tracking) {
     var strip = $('strip');
     var ctx = $('readyContext');
-    var title = $('readyTitle');
     strip.innerHTML = '';
 
-    if (!R.length) {
-      if (!tracking) {
-        // Empty + not tracking: hide the strip entirely — focus is enter-token
-        ctx.hidden = true;
-        return;
-      }
-      ctx.hidden = false;
-      title.textContent = 'What’s ready';
-      var empty = document.createElement('p');
-      empty.className = 'strip-empty';
-      empty.textContent = 'Nothing ready yet.';
-      strip.appendChild(empty);
-      return;
-    }
-
+    if (!R.length) { ctx.hidden = true; return; }
     ctx.hidden = false;
-    title.textContent = tracking ? 'Also ready' : 'What’s ready';
+    $('readyTitle').textContent = 'Ready now · ' + R.length;
+    var open = readyOpen === null ? !tracking : readyOpen;
+    strip.hidden = !open;
+    $('readyToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+    ctx.classList.toggle('open', open);
 
     R.slice(0, 12).forEach(function (h, i) {
       var chip = document.createElement('span');
@@ -388,7 +384,6 @@
     $('skeleton').hidden = true;
     $('focusEmpty').hidden = tracking;
     $('mine').hidden = !tracking;
-    document.body.classList.toggle('has-cta', !tracking);
     renderNet();
 
     // Soft chime when a new public ready appears (not mine)
@@ -401,7 +396,7 @@
     syncWatch();
     renderReadyStrip(R, now, tracking);
 
-    $('sync').textContent = OBStore.getSyncState() === 'local' ? OBStore.getSyncLabel() : '';
+    $('sync').textContent = '';   // connection state lives in the offline banner and Settings
     first = false;
   }
 
@@ -418,16 +413,31 @@
     });
   }
 
-  function trackFrom(inputId, msgId) {
+  /** Digits only, three at most, and never above the largest token: extra input is simply ignored. */
+  function sanitize(input) {
+    input.value = OBEntryRules.clampInput(input.value, MAX_TOKEN);
+  }
+
+  /** Keeps the button honest: it is only active when the number can be tracked. */
+  function liveEntry(input, msgId, btnId) {
+    sanitize(input);
+    input.removeAttribute('aria-invalid');
+    var res = input.value ? checkEntry(input.value) : { ok: false, code: 'empty' };
+    $(btnId).disabled = !res.ok;
+    if (res.ok && res.note) fieldMsg(msgId, res.note, 'note');
+    else if (!res.ok && (res.code === 'duplicate' || res.code === 'limit')) fieldMsg(msgId, res.message, 'error');
+    else fieldMsg(msgId, '', '');
+  }
+
+  function trackFrom(inputId, msgId, btnId) {
     var input = $(inputId);
+    sanitize(input);
     var res = checkEntry(input.value);
     if (!res.ok) {
-      fieldMsg(msgId, res.message, 'error');
-      input.setAttribute('aria-invalid', 'true');
-      input.focus();
+      // Nothing to say for an empty or unusable number: the button stays disabled.
+      if (res.code === 'duplicate' || res.code === 'limit') fieldMsg(msgId, res.message, 'error');
       return;
     }
-    input.removeAttribute('aria-invalid');
     fieldMsg(msgId, '', '');
     var n = res.token;
     var wasEmpty = minesCache.length === 0;
@@ -435,22 +445,22 @@
       minesCache = list;
       $('tokIn').value = '';
       $('tokInEmpty').value = '';
+      $('getTok').disabled = true;
+      $('getTokEmpty').disabled = true;
       input.blur();
+      setAddOpen(false);
       if (res.note) toast(res.note);
       if (wasEmpty || !alertsOn) enableAlerts();
       else render();
     });
   }
 
-  /** While typing: clear the error, and show a gentle note once the number is complete. */
-  function liveEntry(input, msgId) {
-    input.removeAttribute('aria-invalid');
-    var raw = input.value;
-    if (!raw) { fieldMsg(msgId, '', ''); return; }
-    var res = checkEntry(raw);
-    if (res.ok && res.note) fieldMsg(msgId, res.note, 'note');
-    else if (!res.ok && res.code === 'range') fieldMsg(msgId, res.message, 'error');
-    else fieldMsg(msgId, '', '');
+  function setAddOpen(open) {
+    $('addForm').hidden = !open;
+    $('addToggle').hidden = open;
+    $('addToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) { try { $('tokIn').focus(); } catch (e) {} }
+    else { fieldMsg('msgAdd', '', ''); $('tokIn').value = ''; $('getTok').disabled = true; }
   }
 
   /* —— Notification permission: explain first, ask when it matters (after the first order). —— */
@@ -462,11 +472,11 @@
       $('notifyCard').hidden = !show;
       if (show) {
         var denied = st === 'denied';
-        $('notifyTitle').textContent = denied ? 'Notifications are off' : 'Get alerted when it’s ready';
+        $('notifyTitle').textContent = denied ? 'Alerts are off' : 'Turn on alerts';
         $('notifySub').textContent = denied
-          ? 'Turn them on in system settings so you hear about it even if Cue is closed.'
-          : 'Allow notifications so you hear about it even if Cue is closed.';
-        $('notifyAllow').textContent = denied ? 'Open settings' : 'Allow notifications';
+          ? 'Turn them on in settings so you don’t miss your order.'
+          : 'Get notified when your order is ready, even if Cue is closed.';
+        $('notifyAllow').textContent = denied ? 'Open settings' : 'Turn on';
       }
     });
   }
@@ -494,16 +504,19 @@
     render();
   }
 
-  function wireInput(el) {
-    if (!el) return;
-    el.addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); });
-  }
-
   function wireUi() {
     $('getTok').onclick = function () { trackFrom('tokIn', 'msgAdd'); };
     $('getTokEmpty').onclick = function () { trackFrom('tokInEmpty', 'msgEmpty'); };
-    $('tokIn').addEventListener('input', function () { liveEntry(this, 'msgAdd'); });
-    $('tokInEmpty').addEventListener('input', function () { liveEntry(this, 'msgEmpty'); });
+    $('tokIn').addEventListener('input', function () { liveEntry(this, 'msgAdd', 'getTok'); });
+    $('tokInEmpty').addEventListener('input', function () { liveEntry(this, 'msgEmpty', 'getTokEmpty'); });
+    $('addToggle').onclick = function () { setAddOpen(true); };
+    $('readyToggle').onclick = function () {
+      var open = $('strip').hidden;
+      readyOpen = open;
+      $('strip').hidden = !open;
+      $('readyContext').classList.toggle('open', open);
+      this.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
     $('undo').onclick = function () {
       $('toast').hidden = true;
       var fn = undoFn; undoFn = null;
@@ -526,8 +539,6 @@
       OBNative.prefsSet(NOTIFY_DISMISS_KEY, '1');
       $('notifyCard').hidden = true;
     };
-    wireInput($('tokIn'));
-    wireInput($('tokInEmpty'));
     $('tokIn').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') trackFrom('tokIn', 'msgAdd'); });
     $('tokInEmpty').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') trackFrom('tokInEmpty', 'msgEmpty'); });
     $('gotit').onclick = function () {
@@ -559,6 +570,8 @@
       onChange: function (key, on) { if (key === 'sound') { snd = on; if (on) chime(); } }
     });
     minesCache = await OBStore.getMines();
+    $('skelEntry').hidden = minesCache.length > 0;
+    $('skelTrack').hidden = minesCache.length === 0;
     notifyDismissed = (await OBNative.prefsGet(NOTIFY_DISMISS_KEY)) === '1';
     if (minesCache.length && !alertsOn) {
       alertsOn = true;

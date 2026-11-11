@@ -96,8 +96,8 @@ test('local-only: issueToken adds a free token and refuses an active one', async
   assert.equal(o.n, 12);
   assert.equal(s.find(12).c, 0);
   await assert.rejects(s.issueToken(12), /Token 12 is already in use/);
-  await assert.rejects(s.issueToken(0), /between 1 and 200/);
-  await assert.rejects(s.issueToken(201), /between 1 and 200/);
+  await assert.rejects(s.issueToken(0), /Check the token number/);
+  await assert.rejects(s.issueToken(201), /Check the token number/);
   await s.write(12, { c: Date.now() });
   await s.issueToken(12);                       // collected → free again
   assert.equal(s.find(12).c, 0);

@@ -179,7 +179,7 @@
   async function issueToken(n) {
     n = +n;
     if (!TR.isValidToken(n)) {
-      var bad = new Error('Token must be between 1 and ' + TR.MAX_TOKEN);
+      var bad = new Error('Check the token number.');
       bad.code = 'invalid-token';
       throw bad;
     }

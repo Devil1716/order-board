@@ -15,6 +15,16 @@
 
   function digitsOf(raw) { return String(raw == null ? '' : raw).replace(/\D/g, ''); }
 
+  /**
+   * What an input box should hold after the user types or pastes: digits only, at most three,
+   * and the last digit is dropped if it would push the number past `max`. No message is shown.
+   */
+  function clampInput(raw, max) {
+    var d = digitsOf(raw).slice(0, 3);
+    while (d && parseInt(d, 10) > (max || MAX_TOKEN)) d = d.slice(0, -1);
+    return d;
+  }
+
   function validateToken(raw, ctx) {
     ctx = ctx || {};
     var max = ctx.max || MAX_TOKEN;
@@ -24,7 +34,7 @@
     if (!digits) return { ok: false, code: 'empty', message: 'Enter the number on your receipt.' };
     var n = parseInt(digits, 10);
     if (!(n >= 1 && n <= max)) {
-      return { ok: false, code: 'range', message: 'Token numbers run from 1 to ' + max + '.' };
+      return { ok: false, code: 'range', message: 'Check the number on your receipt.' };
     }
     if (mines.indexOf(n) !== -1) {
       return { ok: false, code: 'duplicate', message: 'You’re already tracking token ' + n + '.' };
@@ -42,5 +52,5 @@
     return { ok: true, token: n };
   }
 
-  return { validateToken: validateToken, digitsOf: digitsOf, MAX_TOKEN: MAX_TOKEN, MAX_TRACKED: MAX_TRACKED };
+  return { validateToken: validateToken, clampInput: clampInput, digitsOf: digitsOf, MAX_TOKEN: MAX_TOKEN, MAX_TRACKED: MAX_TRACKED };
 });

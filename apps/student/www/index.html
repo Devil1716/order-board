@@ -22,31 +22,39 @@
 </header>
 <main>
   <section id="v-cust">
-    <!-- Can't reach the counter: friendly message + retry -->
-    <div class="net" id="netBanner" hidden>
-      <p class="net-text">Can’t reach the counter right now. Your token is saved and we’ll keep trying.</p>
-      <button class="pill-btn" id="retryBtn" type="button">Retry</button>
+    <!-- Can't reach the counter -->
+    <div class="net" id="netBanner" role="status" hidden>
+      <p class="net-text">Can’t reach the counter. Your token is saved.</p>
+      <button class="net-btn" id="retryBtn" type="button">Retry</button>
     </div>
 
-    <!-- Loading -->
+    <!-- Loading: mirrors the real layout so nothing jumps -->
     <div class="skel" id="skeleton" aria-hidden="true">
-      <div class="skel-bar skel-h"></div>
-      <div class="skel-card"><div class="skel-bar skel-s"></div><div class="skel-bar skel-n"></div><div class="skel-bar skel-m"></div></div>
+      <div class="skel-entry" id="skelEntry">
+        <div class="skel-bar skel-title"></div>
+        <div class="skel-bar skel-line"></div>
+        <div class="skel-bar skel-line"></div>
+        <div class="skel-bar skel-input"></div>
+        <div class="skel-bar skel-btn"></div>
+      </div>
+      <div class="skel-track" id="skelTrack" hidden>
+        <div class="skel-bar skel-title"></div>
+        <div class="skel-card">
+          <div class="skel-bar skel-num"></div>
+          <div class="skel-bar skel-line"></div>
+          <div class="skel-bar skel-steps"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Empty: one focused job — enter your token -->
     <div class="focus-empty" id="focusEmpty" hidden>
       <h1 class="focus-title">Track your order</h1>
-      <p class="focus-why">Enter the token number on your receipt.</p>
+      <p class="focus-why">Enter the number on your receipt. We’ll alert you the moment it’s ready.</p>
       <label class="sr-only" for="tokInEmpty">Your token number</label>
       <input class="tokin" id="tokInEmpty" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" maxlength="3" placeholder="000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="msgEmpty">
       <p class="field-msg" id="msgEmpty" role="alert"></p>
-      <ol class="how">
-        <li><span class="how-n">1</span>We watch the counter for you.</li>
-        <li><span class="how-n">2</span>You get an alert the moment it’s ready. Keep Cue open or allow notifications.</li>
-        <li><span class="how-n">3</span>Show your number at the counter.</li>
-      </ol>
-      <div class="cta-bar"><button class="btn red big" id="getTokEmpty" type="button">Track my order</button></div>
+      <button class="btn red big" id="getTokEmpty" type="button" disabled>Track my order</button>
     </div>
 
     <!-- Tracking: my orders are the product -->
@@ -55,25 +63,31 @@
       <div class="mine-list" id="mineList"></div>
 
       <div class="notify-card" id="notifyCard" hidden>
-        <p class="notify-title" id="notifyTitle">Get alerted when it’s ready</p>
-        <p class="notify-sub" id="notifySub">Allow notifications so you hear about it even if Cue is closed.</p>
-        <div class="btnrow">
-          <button class="btn red" id="notifyAllow" type="button">Allow notifications</button>
+        <p class="notify-title" id="notifyTitle">Turn on alerts</p>
+        <p class="notify-sub" id="notifySub">Get notified when your order is ready, even if Cue is closed.</p>
+        <div class="notify-actions">
           <button class="btn ghost" id="notifyLater" type="button">Not now</button>
+          <button class="btn red" id="notifyAllow" type="button">Turn on</button>
         </div>
       </div>
 
       <div class="add-more" id="addTok">
-        <label class="status" id="addTitle" for="tokIn">Add another</label>
-        <input class="tokin" id="tokIn" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" maxlength="3" placeholder="000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="msgAdd">
-        <button class="btn red" id="getTok" type="button">Add order</button>
-        <p class="field-msg" id="msgAdd" role="alert"></p>
+        <button class="add-toggle" id="addToggle" type="button" aria-expanded="false" aria-controls="addForm"><span class="add-plus" aria-hidden="true">+</span>Add another order</button>
+        <div class="add-form" id="addForm" hidden>
+          <label class="sr-only" for="tokIn" id="addTitle">Another token number</label>
+          <input class="tokin" id="tokIn" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" maxlength="3" placeholder="000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="msgAdd">
+          <button class="btn red" id="getTok" type="button" disabled>Add</button>
+          <p class="field-msg" id="msgAdd" role="alert"></p>
+        </div>
       </div>
     </div>
 
-    <!-- Secondary context: compact ready strip (not a masonry wall) -->
+    <!-- Secondary context, collapsed while you're tracking -->
     <div class="ready-context" id="readyContext" hidden>
-      <h2 class="sec-title" id="readyTitle">What’s ready</h2>
+      <button class="rc-head" id="readyToggle" type="button" aria-expanded="true" aria-controls="strip">
+        <span class="sec-title" id="readyTitle">Ready now</span>
+        <svg class="rc-chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
       <div class="strip" id="strip"></div>
     </div>
 

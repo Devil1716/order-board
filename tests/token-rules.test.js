@@ -32,7 +32,7 @@ test('entryState: empty and free numbers offer Add', () => {
   assert.equal(TR.entryState(201, null, NOW).kind, 'invalid');
   assert.equal(TR.entryState(201, null, NOW).blocked, true);
   assert.equal(TR.entryState(200, null, NOW).kind, 'free');
-  assert.match(TR.entryState(201, null, NOW).message, /between 1 and 200/);
+  assert.match(TR.entryState(201, null, NOW).message, /Check the token number/);
 });
 
 test('entryState: a preparing token is in use and blocks Add', () => {

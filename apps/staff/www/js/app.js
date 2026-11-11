@@ -236,10 +236,8 @@
     else if (typed.length < 3) {
       var cand = (typed + k).replace(/^0+(?=\d)/, '');
       var num = parseInt(cand, 10);
+      // Digits that would go past the largest token are simply not accepted.
       if (!isNaN(num) && num <= POOL) typed = cand;
-      else if (!isNaN(num) && num > POOL) {
-        toast('Token range is 1 to ' + POOL);
-      }
     }
     render();
   }
@@ -249,7 +247,7 @@
     if (!n) return;
     var st = stateFor(n);
     if (st.kind === 'invalid') {
-      toast('Token must be between 1 and ' + POOL);
+      toast('Check the token number.');
       typed = '';
       render();
       return;

@@ -12,12 +12,13 @@ test('empty and non-numeric input asks for the receipt number', () => {
   }
 });
 
-test('range is 1 to 200 with a clear message', () => {
+test('out-of-range numbers are refused with neutral wording (no numbers)', () => {
   for (const raw of ['0', '00', '201', '999', '1000']) {
     const r = E.validateToken(raw, { mines: [], order: live });
     assert.equal(r.ok, false, raw);
     assert.equal(r.code, 'range');
-    assert.equal(r.message, 'Token numbers run from 1 to 200.');
+    assert.equal(r.message, 'Check the number on your receipt.');
+    assert.doesNotMatch(r.message, /\d/);
   }
   for (const raw of ['1', '7', '42', '200', '007']) {
     assert.equal(E.validateToken(raw, { mines: [], order: live }).ok, true, raw);
@@ -60,4 +61,25 @@ test('an already collected token works but warns', () => {
 test('a normal preparing token has no note', () => {
   const r = E.validateToken('40', { mines: [], order: live });
   assert.deepEqual(r, { ok: true, token: 40 });
+});
+
+test('typing is clamped silently: digits only, three at most, never above the top token', () => {
+  assert.equal(E.clampInput('4a2'), '42');
+  assert.equal(E.clampInput('1234'), '123', 'only three digits are kept');
+  assert.equal(E.clampInput('300'), '30', 'drops the digit that would exceed the top token');
+  assert.equal(E.clampInput('201'), '20');
+  assert.equal(E.clampInput('200'), '200');
+  assert.equal(E.clampInput('999'), '99');
+  assert.equal(E.clampInput('250'), '25');
+  assert.equal(E.clampInput('007'), '007');
+  assert.equal(E.clampInput(''), '');
+  assert.equal(E.clampInput('abc'), '');
+});
+
+test('no user-facing message anywhere mentions a numeric range', () => {
+  for (const raw of ['', '0', '999', '42', '88']) {
+    const r = E.validateToken(raw, { mines: [42], order: null });
+    const msg = (r.message || '') + (r.note || '');
+    assert.doesNotMatch(msg, /\b1\b.*\b200\b|between|range/i, raw);
+  }
 });
