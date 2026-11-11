@@ -1,19 +1,13 @@
 (function () {
   var EXP = 20;
-  var POOL = 150;
+  var POOL = 200;
   var snd = false, ac = null;
+  var settings = null;
+  var APP_VERSION = '1.0.0';
   var undoFn = null, toastT = null;
   var typed = '', showAllP = false, showAllR = false;
 
   var $ = function (i) { return document.getElementById(i); };
-
-  function paintThemeBtn(mode) {
-    var b = $('themeBtn');
-    if (!b) return;
-    b.textContent = mode === 'dark' ? 'Dark' : 'Light';
-    b.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
-  }
-
 
   function chime() {
     if (!snd) return;
@@ -41,7 +35,13 @@
     toastT = setTimeout(function () { $('toast').hidden = true; }, 6000);
   }
 
-  function write(n, f) { OBStore.write(n, f); }
+  function fail(err) {
+    toast((err && err.message) || 'Could not save. Try again.');
+    render();
+  }
+
+  /** Saves via the store; a rejected write has already been rolled back, so just tell the staff. */
+  function write(n, f) { return OBStore.write(n, f).catch(fail); }
   function view() { return OBStore.view(EXP); }
 
   function callReady(n) {
@@ -60,51 +60,106 @@
     toast('Token ' + n + ' taken off', function () { write(n, { c: 0 }); });
   }
 
-  function nextNumSync() {
-    var start = window.__obNextStart || 1;
-    var V = view(), used = {};
-    V.prep.concat(V.rd).forEach(function (x) { used[x.n] = 1; });
-    for (var k = 0; k < POOL; k++) {
-      var n = (start - 1 + k) % POOL + 1;
-      if (!used[n]) return n;
+  var TR = window.OBTokenRules;
+  var conflictN = 0, shakeKey = '';
+
+  /** Keypad state for token n: free / recent / preparing / ready / invalid / conflict. */
+  function stateFor(n) {
+    var st = TR.entryState(n, n ? OBStore.find(n) : null, Date.now());
+    if (n && !st.blocked && n === conflictN) {
+      return {
+        kind: 'conflict', blocked: true, n: n,
+        title: 'Token ' + n + ' was just taken',
+        message: 'Another phone added token ' + n + ' a moment ago. Pick a free number.'
+      };
     }
-    return 0;
+    return st;
   }
 
-  async function refreshNextStart() {
-    window.__obNextStart = await OBStore.getNextStart();
+  /** Shake/haptic only once the number looks intended (2+ digits), not on the first digit of e.g. 12 or 125. */
+  function typedComplete() {
+    return typed.length >= 2;
   }
 
-  async function setNext(n) {
-    await OBStore.setNext(n);
-    window.__obNextStart = n > POOL ? 1 : n;
+  function shakeEntry() {
+    var e = $('entry');
+    e.classList.remove('shake');
+    void e.offsetWidth;
+    e.classList.add('shake');
+    try {
+      var H = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Haptics;
+      if (H && H.notification) H.notification({ type: 'WARNING' });
+      else if (H && H.impact) H.impact({ style: 'Heavy' });
+      else if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    } catch (e2) {}
   }
 
-  function modeOf(n) {
-    var V = view();
-    if (V.prep.some(function (x) { return x.n === n; })) return 'prep';
-    if (V.rd.some(function (x) { return x.n === n; })) return 'ready';
-    return 'none';
+  function addToken(n) {
+    return OBStore.issueToken(n).then(function () {
+      toast('Token ' + n + ' added', function () { write(n, { c: Date.now() }); });
+    }, function (err) {
+      if (err && err.code === 'in-use') {
+        // Lost a race with another phone: keep the number on the keypad and explain inline.
+        conflictN = n;
+        typed = String(n);
+        render();
+        shakeKey = typed + ':conflict';
+        shakeEntry();
+      }
+      fail(err);
+    });
   }
 
   function drawEntry() {
     var e = $('entry');
+    var n = parseInt(typed, 10) || 0;
+    if (conflictN && n !== conflictN) conflictN = 0;
+    var st = stateFor(n), mb = $('mainBtn');
+    var inUse = st.kind === 'preparing' || st.kind === 'ready' || st.kind === 'conflict';
+    var warn = st.kind === 'recent';
+
     e.textContent = typed || 'Type a token';
-    e.className = 'entry' + (typed ? '' : ' ph');
-    var n = parseInt(typed, 10), m = n ? modeOf(n) : 'none', mb = $('mainBtn');
-    mb.disabled = !n;
-    mb.textContent = !n ? 'Add token' : m === 'prep' ? 'Ready: ' + n : m === 'ready' ? 'Hand over: ' + n : 'Add token ' + n;
-    $('handRem').hidden = !(n && m === 'prep');
-    var nn = nextNumSync();
-    $('genNum').textContent = nn || 'Full';
-    $('genBtn').disabled = !nn;
+    e.className = 'entry' + (typed ? '' : ' ph') + (inUse || st.kind === 'invalid' ? ' bad' : warn ? ' warn' : '') +
+      (e.classList.contains('shake') ? ' shake' : '');
+
+    mb.disabled = !n || st.kind === 'invalid' || st.kind === 'conflict';
+    mb.textContent = !n ? 'Add token'
+      : st.kind === 'preparing' ? 'Mark ' + n + ' ready'
+      : st.kind === 'ready' ? 'Hand over ' + n
+      : warn ? 'Add ' + n + ' again'
+      : st.kind === 'free' ? 'Add token ' + n
+      : 'Add token';
+    $('handRem').hidden = st.kind !== 'preparing';
+
+    var card = $('inuse');
+    card.hidden = !(inUse || warn);
+    card.className = 'inuse' + (warn ? ' warn' : '');
+    if (!card.hidden) {
+      $('inuseTitle').textContent = st.title;
+      $('inuseMsg').textContent = st.message;
+      var free = inUse ? TR.nearestFree(n, OBStore.find, Date.now(), 3) : [];
+      $('freeWrap').hidden = !free.length;
+      var chips = $('freeChips');
+      chips.innerHTML = '';
+      free.forEach(function (f) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = f;
+        b.setAttribute('aria-label', 'Add token ' + f + ' instead');
+        b.onclick = function () { typed = ''; addToken(f); render(); };
+        chips.appendChild(b);
+      });
+    }
+
+    var key = typed + ':' + st.kind;
+    if ((st.kind === 'preparing' || st.kind === 'ready') && typedComplete() && key !== shakeKey) shakeEntry();
+    shakeKey = key;
+
+    $('keyHint').hidden = !(!n || st.kind === 'free');
     $('keyHint').textContent = !n
       ? 'The red button changes based on the number.'
-      : m === 'prep'
-        ? 'In the kitchen — tap Ready when it’s done.'
-        : m === 'ready'
-          ? 'Waiting for pickup — tap Hand over when given.'
-          : 'Not in the queue yet — tap Add.';
+      : 'Free — tap Add.';
   }
 
   function render() {
@@ -115,7 +170,7 @@
     $('prepH').textContent = P.length ? ('Up next · ' + P.length) : 'Up next';
     $('prepHint').textContent = q
       ? 'Filtered to “' + q + '”.'
-      : (P.length ? 'Red tile is oldest — tap it when ready.' : 'Quiet for now.');
+      : (P.length ? 'Oldest first — tap a token when it is ready.' : 'Quiet for now.');
     var tl = $('tiles'); tl.innerHTML = '';
     if (!PP.length) {
       tl.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">' +
@@ -145,7 +200,7 @@
     mp.textContent = showAllP ? 'Show fewer' : 'Show all ' + PP.length;
 
     $('offWrap').hidden = !R.length;
-    $('readyH').textContent = R.length ? ('Ready — tap when handed over · ' + R.length) : 'Ready — tap when handed over';
+    $('readyH').textContent = R.length ? ('Ready · ' + R.length) : 'Ready';
     var ot = $('offTiles'); ot.innerHTML = '';
     (q || showAllR ? RR : RR.slice(0, LIM)).forEach(function (h) {
       var b = document.createElement('button');
@@ -171,7 +226,8 @@
     }
 
     drawEntry();
-    $('sync').textContent = OBStore.getSyncLabel();
+    var syncLbl = OBStore.getSyncLabel();
+    $('sync').textContent = /^Live/.test(syncLbl) ? '' : syncLbl;
   }
 
   function press(k) {
@@ -180,10 +236,8 @@
     else if (typed.length < 3) {
       var cand = (typed + k).replace(/^0+(?=\d)/, '');
       var num = parseInt(cand, 10);
+      // Digits that would go past the largest token are simply not accepted.
       if (!isNaN(num) && num <= POOL) typed = cand;
-      else if (!isNaN(num) && num > POOL) {
-        toast('Token range is 1 to ' + POOL);
-      }
     }
     render();
   }
@@ -191,20 +245,18 @@
   function act() {
     var n = parseInt(typed, 10);
     if (!n) return;
-    if (n < 1 || n > POOL) {
-      toast('Token must be between 1 and ' + POOL);
+    var st = stateFor(n);
+    if (st.kind === 'invalid') {
+      toast('Check the token number.');
       typed = '';
       render();
       return;
     }
-    var m = modeOf(n);
+    if (st.kind === 'conflict') return;
     typed = '';
-    if (m === 'prep') callReady(n);
-    else if (m === 'ready') handOver(n);
-    else {
-      write(n, { t: Date.now(), r: 0, c: 0 });
-      toast('Token ' + n + ' added', function () { write(n, { c: Date.now() }); });
-    }
+    if (st.kind === 'preparing') callReady(n);
+    else if (st.kind === 'ready') handOver(n);
+    else addToken(n);
   }
 
   function remHand() {
@@ -233,22 +285,6 @@
         if (P.length) callReady(P[0].n);
       };
     }
-    $('genBtn').onclick = async function () {
-      var n = nextNumSync();
-      if (!n) { toast('All ' + POOL + ' tokens are in use'); return; }
-      write(n, { t: Date.now(), r: 0, c: 0 });
-      await setNext(n + 1);
-      toast('Give the customer token ' + n, function () {
-        write(n, { c: Date.now() });
-        setNext(n);
-      });
-      render();
-    };
-    $('genReset').onclick = async function () {
-      await setNext(1);
-      render();
-      toast('Numbering restarts at 1');
-    };
     $('handRem').onclick = remHand;
     $('moreP').onclick = function () { showAllP = !showAllP; render(); };
     $('moreR').onclick = function () { showAllR = !showAllR; render(); };
@@ -268,7 +304,7 @@
       undoFn = null;
     };
     document.addEventListener('keydown', function (ev) {
-      if (ev.metaKey || ev.ctrlKey || ev.target.tagName === 'INPUT') return;
+      if (ev.metaKey || ev.ctrlKey || ev.target.tagName === 'INPUT' || document.body.classList.contains('settings-open')) return;
       if (/^\d$/.test(ev.key)) press(ev.key);
       else if (ev.key === 'Backspace') press('Delete');
       else if (ev.key === 'Escape') press('Clear');
@@ -281,65 +317,76 @@
         }
       }
     });
-    $('snd').onclick = function () {
-      snd = !snd;
-      this.setAttribute('aria-pressed', snd);
-      this.textContent = snd ? 'Sound on' : 'Sound off';
-      if (snd) chime();
-    };
-
-    if ($('themeBtn')) {
-      $('themeBtn').onclick = async function () {
-        var mode = window.OBNative ? await OBNative.toggleTheme() : (function () {
-          var cur = document.documentElement.getAttribute('data-theme') ||
-            (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-          var next = cur === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', next);
-          try { localStorage.setItem('ob-theme', next); } catch (e) {}
-          return next;
-        })();
-        paintThemeBtn(mode);
-      };
-    }
-
   }
 
+  async function initSettings() {
+    await OBNative.initTheme();
+    settings = OBSettings.create({ get: OBNative.prefsGet, set: OBNative.prefsSet }, { sound: false });
+    await settings.load();
+    snd = settings.get('sound');
+    OBSettingsUI.init({
+      settings: settings,
+      appName: 'Cue Staff',
+      version: APP_VERSION,
+      onChange: function (key, on) { if (key === 'sound') { snd = on; if (on) chime(); } }
+    });
+  }
+
+  var boardStarted = false;
   async function startBoard() {
-    $('staff-auth').hidden = true;
-    $('v-admin').hidden = false;
+    if (boardStarted) return;
+    boardStarted = true;
     wireKeys();
     wireUi();
-
-    if (window.OBNative) {
-      var mode = await OBNative.initTheme();
-      paintThemeBtn(mode);
-    } else {
-      var saved = null;
-      try { saved = localStorage.getItem('ob-theme'); } catch (e) {}
-      paintThemeBtn(saved === 'dark' || (!saved && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
-    }
-    await refreshNextStart();
     OBStore.onChange(function () { render(); });
+    // Keep the counter hidden until Firestore is attached; otherwise a token added in the first
+    // second after sign-in would only be saved on this phone and never reach the live board.
     await OBStore.init();
+    $('staff-auth').hidden = true;
+    $('v-admin').hidden = false;
     render();
     setInterval(render, 30000);
   }
 
+  function authMessage(error) {
+    var code = error && error.code ? String(error.code) : '';
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(code)) return 'Wrong email or password.';
+    if (/invalid-email/.test(code)) return 'Enter a valid email address.';
+    if (/too-many-requests/.test(code)) return 'Too many tries. Wait a minute and try again.';
+    if (/network-request-failed/.test(code)) return 'No connection. Check the internet and try again.';
+    if (/user-disabled/.test(code)) return 'This account has been disabled.';
+    if (/operation-not-allowed|admin-restricted/.test(code)) return 'Email sign-in is not turned on for this Firebase project.';
+    if (/permission-denied/.test(code)) return 'This account is not authorized for staff access.';
+    return (error && error.message && error.code === undefined ? error.message : '') || 'Could not sign in. Try again.';
+  }
+
+  function showAuth(message) {
+    $('staff-auth').hidden = false;
+    $('staff-auth-error').textContent = message || '';
+  }
+
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
+    await initSettings();
     if (window.ORDER_BOARD_STAFF_APP && window.ORDER_BOARD_FIREBASE) {
-      $('staff-auth').hidden = false;
+      showAuth('');
       $('staff-auth-form').onsubmit = async function (event) {
         event.preventDefault();
         var button = this.querySelector('button[type="submit"]');
+        var email = $('staff-email').value.trim();
+        var password = $('staff-password').value;
+        if (!email || !password) {
+          showAuth('Enter your email and password.');
+          return;
+        }
         button.disabled = true;
         $('staff-auth-error').textContent = 'Signing in…';
         try {
-          await OBStore.signInStaff($('staff-email').value, $('staff-password').value);
+          await OBStore.signInStaff(email, password);
           $('staff-password').value = '';
           await startBoard();
         } catch (error) {
-          $('staff-auth-error').textContent = error.message || 'Could not sign in.';
+          showAuth(authMessage(error));
         } finally {
           button.disabled = false;
         }
@@ -350,7 +397,7 @@
           return;
         }
       } catch (error) {
-        $('staff-auth-error').textContent = error.message || 'Could not restore staff session.';
+        showAuth(authMessage(error));
       }
       return;
     }

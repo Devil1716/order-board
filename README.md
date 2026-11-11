@@ -44,14 +44,14 @@ Student and Staff share a board when **Firebase Firestore** is configured. Witho
 
 ### 1. Firestore Data Schema
 - **Collection**: `orders`
-- **Document ID**: Token number as string (`"1"` through `"150"`)
+- **Document ID**: Token number as string (`"1"` through `"200"`)
 - **Fields**:
   - `t` (number): Epoch timestamp (ms) when order was created
   - `r` (number): Epoch timestamp (ms) when marked ready (or `0` if preparing)
   - `c` (number): Epoch timestamp (ms) when collected / handed over (or `0`)
 
 ### 2. Business Rules
-- **Token range**: 1–150 (tokens are reused as orders are completed).
+- **Token range**: 1–200 (tokens are reused as orders are completed).
 - **Ready expiry**: A ready order expires **20 minutes** after `r`.
 - **Stale order pruning**: Orders older than **4 hours** (based on `t`) are ignored and pruned.
 - **Derived status**:
@@ -87,6 +87,15 @@ Before deploying, configure and distribute staff clients and provision staff acc
 
 ### 6. Android / Web Firebase Configuration
 Set the Firebase web app configuration in `shared/js/firebase-config.js` and run `npm run sync-shared`. The staff app signs in with the provisioned email/password before attaching its Firestore listener; the student app remains publicly readable and can submit collection updates without signing in.
+
+On Android, staff add a token by typing its number on the keypad. Duplicates are prevented in three layers:
+1. **Live check while typing** – if the number is already in use (not collected, under 4 h old, and not ready for more than 20 min) the keypad shows "Token N is already in use" with since-when, offers *Mark ready* / *Hand over* instead of *Add*, shakes/vibrates, and suggests the nearest free numbers (tap one to add it). A number handed over in the last 2 minutes only gets a warning ("Add it again?").
+2. **Transaction guard** – the add is a Firestore transaction that refuses an active token (covers two phones racing) and creates `orders/{n}` `{t, r:0, c:0}`.
+3. **Security rules** – a staff update cannot change `t` (re-issue) on an order that still holds its token, so even a buggy client can't duplicate it. iOS flows (issue transaction, ready / hand over / cancel / undo) are unaffected.
+
+All writes wait for Firestore to confirm; a rejected write is rolled back and shown as an error. Without a Firebase config the apps stay local-only.
+
+Run the JS tests (token rules, keypad states, store behaviour against a fake Firestore) with `npm test`, and the `firestore.rules` tests against the Firebase emulator (needs Java 21) with `npm run test:rules`.
 
 ---
 
@@ -151,7 +160,7 @@ xcodegen generate --spec ios/project.yml --project ios
 ## Features & Behavior
 
 ### Cue (Student App)
-- **Token entry**: Clean numeric input validating 1–150.
+- **Token entry**: Clean numeric input validating 1–200.
 - **Multi-order tracking**: Track one or multiple tokens simultaneously with status badges ("You're next", "Preparing: X orders ahead", "Ready", "Collected", "Timed out").
 - **View Switcher**: Toggle between **My Orders** (user-centric cards + compact "What's ready" strip) and **Board View** (hero card for latest ready token + ready grid + preparing bar).
 - **Full-screen ready alert**: Pops up when a tracked order becomes ready with sound chime (880Hz + 1175Hz), haptic vibration pattern, and background local notification.
@@ -162,7 +171,6 @@ xcodegen generate --spec ios/project.yml --project ios
 - **Custom numpad**: 3-column layout (1–9, Clear, 0, Delete) with tactile haptic feedback.
 - **Adaptive action button**: Automatically adapts to typed token ("Add token", "Ready: N", "Hand over: N").
 - **Quick Mark Ready**: Instant one-tap button to mark the oldest preparing order ready.
-- **Token suggestion generator**: Automatically recommends the next available token within 1–150 (reusing freed numbers) with a "Restart at 1" shortcut.
 - **Live sections**:
   - **Up next** (Preparing tiles): Oldest order highlighted in red with "Up next" badge, elapsed time (`<1m` / `Xm`), and "Cancel order" link.
   - **Ready** (Ready tiles): Tap to hand over, with "Clear all" confirmation dialog.

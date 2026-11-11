@@ -16,22 +16,26 @@
 </head>
 <body>
 <header class="top">
+  <button class="ib icon" id="settingsBack" type="button" aria-label="Back" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
   <div class="logo"><img class="logo-mark" src="img/logo.png" width="36" height="36" alt="">Cue Staff</div>
-  <div class="acts">
-    <button class="ib" id="themeBtn" type="button" aria-label="Toggle color theme">Light</button>
-    <button class="ib" id="snd" aria-pressed="false">Sound off</button>
-  </div>
+  <h1 class="top-title" id="settingsTitle" hidden>Settings</h1>
+  <button class="ib icon" id="settingsBtn" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01A1.7 1.7 0 0 0 20.91 10H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z"/></svg></button>
 </header>
 <main>
   <section id="staff-auth" hidden>
-    <div class="panel">
-      <h1>Staff sign in</h1>
-      <form id="staff-auth-form">
-        <p><label>Email<br><input id="staff-email" type="email" autocomplete="username" required></label></p>
-        <p><label>Password<br><input id="staff-password" type="password" autocomplete="current-password" required></label></p>
+    <div class="panel auth-panel">
+      <h1 class="auth-title">Staff sign in</h1>
+      <p class="sub">Sign in with your staff account to run the counter.</p>
+      <form id="staff-auth-form" class="auth-form" novalidate>
+        <label class="auth-field" for="staff-email">Email
+          <input id="staff-email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <label class="auth-field" for="staff-password">Password
+          <input id="staff-password" type="password" autocomplete="current-password" required>
+        </label>
         <button class="btn red" type="submit">Sign in</button>
       </form>
-      <p class="hint" id="staff-auth-error" role="alert"></p>
+      <p class="hint auth-err" id="staff-auth-error" role="alert" aria-live="polite"></p>
     </div>
   </section>
   <section id="v-admin" hidden>
@@ -39,10 +43,17 @@
       <div class="panel">
         <div class="entry ph" id="entry">Type a token</div>
         <div class="keys" id="keys"></div>
+        <div class="inuse" id="inuse" role="status" aria-live="polite" hidden>
+          <p class="inuse-title" id="inuseTitle"></p>
+          <p class="inuse-msg" id="inuseMsg"></p>
+          <div class="inuse-free" id="freeWrap" hidden>
+            <span class="inuse-free-label">Free nearby — tap to add</span>
+            <div class="chips" id="freeChips"></div>
+          </div>
+        </div>
         <div class="btnrow"><button class="btn red" id="mainBtn" disabled>Add token</button><button class="btn" id="handRem" hidden>Cancel order</button></div>
         <button class="btn red big quick-oldest" id="quickOldest" type="button" hidden>Mark ready</button>
         <p class="hint" id="keyHint"></p>
-        <div class="gen"><span>Next number</span><b id="genNum">1</b><button class="btn red" id="genBtn">Give this token</button><button class="link" id="genReset">Restart at 1</button></div>
       </div>
       <div class="panel">
         <h2 class="sec-plain" id="prepH">Up next</h2>
@@ -50,13 +61,37 @@
         <div class="tiles" id="tiles"></div>
         <button class="link" id="moreP" hidden></button>
         <div id="offWrap" hidden>
-          <div class="rhead"><h2 class="sec-plain" id="readyH">Ready — tap when handed over</h2><button class="link" id="clearReady">Clear all</button></div>
-          <p class="hint sec-hint">Removes it from the student view.</p>
+          <div class="rhead"><h2 class="sec-plain" id="readyH">Ready</h2><button class="link" id="clearReady">Clear all</button></div>
+          <p class="hint sec-hint">Tap a token once it has been handed over.</p>
           <div class="tiles" id="offTiles"></div>
           <button class="link" id="moreR" hidden></button>
         </div>
         <p class="hint sync-foot" id="sync"></p>
       </div>
+    </div>
+  </section>
+  <section id="v-settings" class="settings">
+    <h2 class="set-label">Appearance</h2>
+    <div class="set-group"><div class="set-row"><div class="seg" id="themeSeg" role="radiogroup" aria-label="Appearance">
+      <button type="button" role="radio" data-mode="system" aria-checked="false">System</button>
+      <button type="button" role="radio" data-mode="light" aria-checked="false">Light</button>
+      <button type="button" role="radio" data-mode="dark" aria-checked="false">Dark</button>
+    </div></div></div>
+    <h2 class="set-label">Alerts</h2>
+    <div class="set-group">
+      <div class="set-row"><div class="set-text"><p class="set-title">Sound</p><p class="set-sub">Play a chime when you mark an order ready.</p></div><button class="switch" id="setSound" type="button" role="switch" aria-checked="false" aria-label="Sound"></button></div>
+    </div>
+    <h2 class="set-label">Account</h2>
+    <div class="set-group">
+      <div class="set-row"><div class="set-text"><p class="set-title">Signed in as</p><p class="set-sub" id="setAccount"></p></div></div>
+      <div class="set-row" id="rowSignOut" hidden><button class="btn danger" id="signOutBtn" type="button">Sign out</button></div>
+    </div>
+    <h2 class="set-label">Sync</h2>
+    <div class="set-group"><div class="set-row"><div class="set-text"><p class="set-title">Status</p><p class="set-sub" id="setSync"></p></div></div></div>
+    <h2 class="set-label">About</h2>
+    <div class="set-group">
+      <div class="set-row"><p class="set-title">App</p><p class="set-value" id="aboutName">Cue Staff</p></div>
+      <div class="set-row"><p class="set-title">Version</p><p class="set-value" id="aboutVersion"></p></div>
     </div>
   </section>
 </main>
@@ -71,7 +106,10 @@
 <script src="vendor/keep-awake.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/native.js"></script>
+<script src="js/token-rules.js"></script>
 <script src="js/store.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/settings-ui.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

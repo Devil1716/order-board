@@ -1,18 +1,18 @@
 import Foundation
 
 /// Core domain rules matching the web prototype:
-/// - Token pool: 1–150
+/// - Token pool: 1–200
 /// - Ready expiry: 20 minutes
 /// - Order stale window: 4 hours from creation timestamp
 public enum TokenRules {
     public static let minToken: Int = 1
-    public static let maxToken: Int = 150
+    public static let maxToken: Int = 200
     public static let defaultExpiryMinutes: Int = 20
     public static let expiryMs: Int64 = Int64(defaultExpiryMinutes * 60 * 1000)
     public static let staleWindowHours: Int = 4
     public static let staleWindowMs: Int64 = Int64(staleWindowHours * 3600 * 1000)
 
-    /// Validates if a token number is in the allowed range 1–150
+    /// Validates if a token number is in the allowed range 1–200
     public static func isValidToken(_ token: Int) -> Bool {
         return token >= minToken && token <= maxToken
     }
@@ -57,9 +57,9 @@ public enum TokenRules {
         return OrderView(preparing: prep, ready: rd)
     }
 
-    /// Suggests the next available token within 1–150 starting from `start`,
+    /// Suggests the next available token within 1–200 starting from `start`,
     /// skipping any tokens currently in preparing or ready status.
-    /// Returns 0 if all 150 tokens are currently in use.
+    /// Returns 0 if all 200 tokens are currently in use.
     public static func nextAvailableToken(currentOrders: [Order],
                                           start: Int = 1,
                                           nowMs: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) -> Int {

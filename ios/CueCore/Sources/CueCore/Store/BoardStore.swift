@@ -38,7 +38,7 @@ public protocol BoardStore: AnyObject {
     func setNextStart(_ token: Int) async throws
     func restoreNextStart(from allocation: TokenAllocation) async throws -> Bool
 
-    /// Atomically reserves and creates the next available order token (1–150).
+    /// Atomically reserves and creates the next available order token (1–200).
     /// Prevents two staff devices from issuing the same token via Firestore atomic transactions.
     func issueNextToken() async throws -> Int
     func issueNextTokenWithCursor() async throws -> TokenAllocation

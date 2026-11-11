@@ -116,7 +116,7 @@ public class CueStaffViewModel: ObservableObject {
             if !typed.isEmpty {
                 typed.removeLast()
             }
-        } else if typed.count < 3 { // Tokens range 1-150 (max 3 digits)
+        } else if typed.count < 3 { // Tokens range 1-200 (max 3 digits)
             let candidate = typed + key
             if let num = Int(candidate), num <= TokenRules.maxToken {
                 typed = String(num) // eliminates leading zeros

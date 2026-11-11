@@ -13,7 +13,9 @@
     "apk:student": "npm run sync-shared && npm run apk --workspace=order-board-student",
     "apk:staff": "npm run sync-shared && npm run apk --workspace=order-board-staff",
     "apk": "npm run apk:student && npm run apk:staff",
-    "postinstall": "ln -sfn ../../node_modules apps/student/node_modules; ln -sfn ../../node_modules apps/staff/node_modules"
+    "postinstall": "ln -sfn ../../node_modules apps/student/node_modules; ln -sfn ../../node_modules apps/staff/node_modules",
+    "test": "node --test tests/*.test.js",
+    "test:rules": "npx --yes firebase-tools@latest emulators:exec --only auth,firestore --project demo-cue \"node --test tests/rules.emulator.js\""
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.0"

@@ -6,11 +6,11 @@ final class TokenRulesTests: XCTestCase {
     func testTokenValidation() {
         XCTAssertTrue(TokenRules.isValidToken(1))
         XCTAssertTrue(TokenRules.isValidToken(75))
-        XCTAssertTrue(TokenRules.isValidToken(150))
+        XCTAssertTrue(TokenRules.isValidToken(200))
 
         XCTAssertFalse(TokenRules.isValidToken(0))
         XCTAssertFalse(TokenRules.isValidToken(-1))
-        XCTAssertFalse(TokenRules.isValidToken(151))
+        XCTAssertFalse(TokenRules.isValidToken(201))
         XCTAssertFalse(TokenRules.isValidToken(999))
     }
 
@@ -98,16 +98,16 @@ final class TokenRulesTests: XCTestCase {
         // If start is 2, candidate 2 and 3 used -> returns 4
         XCTAssertEqual(TokenRules.nextAvailableToken(currentOrders: [o1, o2, o3], start: 2, nowMs: now), 4)
 
-        // If start is 150 and 150 is free -> returns 150
-        XCTAssertEqual(TokenRules.nextAvailableToken(currentOrders: [o1, o2, o3], start: 150, nowMs: now), 150)
+        // If start is 200 and 200 is free -> returns 200
+        XCTAssertEqual(TokenRules.nextAvailableToken(currentOrders: [o1, o2, o3], start: 200, nowMs: now), 200)
 
-        // If 150 is in prep, wrapping around back to 1 (which is used) and finding free token 4
-        let o150 = Order(token: 150, createdMs: now - 1000, readyMs: 0)
-        XCTAssertEqual(TokenRules.nextAvailableToken(currentOrders: [o1, o2, o3, o150], start: 150, nowMs: now), 4)
+        // If 200 is in prep, wrapping around back to 1 (which is used) and finding free token 4
+        let o200 = Order(token: 200, createdMs: now - 1000, readyMs: 0)
+        XCTAssertEqual(TokenRules.nextAvailableToken(currentOrders: [o1, o2, o3, o200], start: 200, nowMs: now), 4)
 
-        // If all 150 tokens were in use -> returns 0
+        // If all 200 tokens were in use -> returns 0
         var allOrders: [Order] = []
-        for i in 1...150 {
+        for i in 1...200 {
             allOrders.append(Order(token: i, createdMs: now - 1000, readyMs: 0))
         }
         XCTAssertEqual(TokenRules.nextAvailableToken(currentOrders: allOrders, start: 1, nowMs: now), 0)

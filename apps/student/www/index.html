@@ -15,49 +15,115 @@
 </head>
 <body>
 <header class="top">
+  <button class="ib icon" id="settingsBack" type="button" aria-label="Back" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
   <div class="logo"><img class="logo-mark" src="img/logo.png" width="36" height="36" alt="">Cue</div>
-  <div class="acts">
-    <button class="ib" id="themeBtn" type="button" aria-label="Toggle color theme">Light</button>
-    <button class="ib" id="snd" aria-pressed="false">Sound off</button>
-  </div>
+  <h1 class="top-title" id="settingsTitle" hidden>Settings</h1>
+  <button class="ib icon" id="settingsBtn" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01A1.7 1.7 0 0 0 20.91 10H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z"/></svg></button>
 </header>
 <main>
   <section id="v-cust">
-    <!-- Empty: one focused job — enter token -->
-    <div class="focus-empty" id="focusEmpty">
-      <h1 class="focus-title">Enter your token</h1>
-      <p class="focus-why">We’ll tell you when your food is ready.</p>
-      <input class="tokin" id="tokInEmpty" type="text" inputmode="numeric" maxlength="4" placeholder="000" aria-label="Your token number" autocomplete="off"><br>
-      <button class="btn red" id="getTokEmpty">Track my order</button>
+    <!-- Can't reach the counter -->
+    <div class="net" id="netBanner" role="status" hidden>
+      <p class="net-text">Can’t reach the counter. Your token is saved.</p>
+      <button class="net-btn" id="retryBtn" type="button">Retry</button>
+    </div>
+
+    <!-- Loading: mirrors the real layout so nothing jumps -->
+    <div class="skel" id="skeleton" aria-hidden="true">
+      <div class="skel-entry" id="skelEntry">
+        <div class="skel-bar skel-title"></div>
+        <div class="skel-bar skel-line"></div>
+        <div class="skel-bar skel-line"></div>
+        <div class="skel-bar skel-input"></div>
+        <div class="skel-bar skel-btn"></div>
+      </div>
+      <div class="skel-track" id="skelTrack" hidden>
+        <div class="skel-bar skel-title"></div>
+        <div class="skel-card">
+          <div class="skel-bar skel-num"></div>
+          <div class="skel-bar skel-line"></div>
+          <div class="skel-bar skel-steps"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty: one focused job — enter your token -->
+    <div class="focus-empty" id="focusEmpty" hidden>
+      <h1 class="focus-title">Track your order</h1>
+      <p class="focus-why">Enter the number on your receipt. We’ll alert you the moment it’s ready.</p>
+      <label class="sr-only" for="tokInEmpty">Your token number</label>
+      <input class="tokin" id="tokInEmpty" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" maxlength="3" placeholder="000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="msgEmpty">
+      <p class="field-msg" id="msgEmpty" role="alert"></p>
+      <button class="btn red big" id="getTokEmpty" type="button" disabled>Track my order</button>
     </div>
 
     <!-- Tracking: my orders are the product -->
     <div class="mine" id="mine" hidden>
       <h2 class="sec-title ink" id="mineTitle">Your orders</h2>
       <div class="mine-list" id="mineList"></div>
+
+      <div class="notify-card" id="notifyCard" hidden>
+        <p class="notify-title" id="notifyTitle">Turn on alerts</p>
+        <p class="notify-sub" id="notifySub">Get notified when your order is ready, even if Cue is closed.</p>
+        <div class="notify-actions">
+          <button class="btn ghost" id="notifyLater" type="button">Not now</button>
+          <button class="btn red" id="notifyAllow" type="button">Turn on</button>
+        </div>
+      </div>
+
       <div class="add-more" id="addTok">
-        <p class="status" id="addTitle">Add another</p>
-        <p class="sub" id="addSub">Same counter, another token.</p>
-        <input class="tokin" id="tokIn" type="text" inputmode="numeric" maxlength="4" placeholder="000" aria-label="Another token number" autocomplete="off"><br>
-        <button class="btn red" id="getTok">Add order</button>
+        <button class="add-toggle" id="addToggle" type="button" aria-expanded="false" aria-controls="addForm"><span class="add-plus" aria-hidden="true">+</span>Add another order</button>
+        <div class="add-form" id="addForm" hidden>
+          <label class="sr-only" for="tokIn" id="addTitle">Another token number</label>
+          <input class="tokin" id="tokIn" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" maxlength="3" placeholder="000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="msgAdd">
+          <button class="btn red" id="getTok" type="button" disabled>Add</button>
+          <p class="field-msg" id="msgAdd" role="alert"></p>
+        </div>
       </div>
     </div>
 
-    <!-- Secondary context: compact ready strip (not a masonry wall) -->
-    <div class="ready-context" id="readyContext">
-      <h2 class="sec-title" id="readyTitle">What’s ready</h2>
+    <!-- Secondary context, collapsed while you're tracking -->
+    <div class="ready-context" id="readyContext" hidden>
+      <button class="rc-head" id="readyToggle" type="button" aria-expanded="true" aria-controls="strip">
+        <span class="sec-title" id="readyTitle">Ready now</span>
+        <svg class="rc-chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
       <div class="strip" id="strip"></div>
     </div>
 
     <p class="sync-foot" id="sync"></p>
   </section>
+  <section id="v-settings" class="settings">
+    <h2 class="set-label">Appearance</h2>
+    <div class="set-group"><div class="set-row"><div class="seg" id="themeSeg" role="radiogroup" aria-label="Appearance">
+      <button type="button" role="radio" data-mode="system" aria-checked="false">System</button>
+      <button type="button" role="radio" data-mode="light" aria-checked="false">Light</button>
+      <button type="button" role="radio" data-mode="dark" aria-checked="false">Dark</button>
+    </div></div></div>
+    <h2 class="set-label">Alerts</h2>
+    <div class="set-group">
+      <div class="set-row"><div class="set-text"><p class="set-title">Sound</p><p class="set-sub">Play a chime when your order is ready.</p></div><button class="switch" id="setSound" type="button" role="switch" aria-checked="false" aria-label="Sound"></button></div>
+      <div class="set-row"><div class="set-text"><p class="set-title">Vibration</p><p class="set-sub">Vibrate when your order is ready.</p></div><button class="switch" id="setVibration" type="button" role="switch" aria-checked="false" aria-label="Vibration"></button></div>
+      <div class="set-row" id="rowNotify" hidden><div class="set-text"><p class="set-title">Notifications</p><p class="set-sub" id="notifyState"></p></div><button class="pill-btn" id="notifyBtn" type="button">Allow</button></div>
+      <div class="set-row" id="rowBg" hidden><div class="set-text"><p class="set-title">Background alerts</p><p class="set-sub" id="bgState"></p></div><button class="pill-btn" id="bgBtn" type="button">Allow</button></div>
+    </div>
+    <h2 class="set-label">Sync</h2>
+    <div class="set-group"><div class="set-row"><div class="set-text"><p class="set-title">Status</p><p class="set-sub" id="setSync"></p></div></div></div>
+    <h2 class="set-label">About</h2>
+    <div class="set-group">
+      <div class="set-row"><p class="set-title">App</p><p class="set-value" id="aboutName">Cue</p></div>
+      <div class="set-row"><p class="set-title">Version</p><p class="set-value" id="aboutVersion"></p></div>
+    </div>
+  </section>
 </main>
-<div class="alert" id="alert" role="alertdialog" aria-labelledby="alH" hidden>
+<div class="alert" id="alert" role="alertdialog" aria-modal="true" aria-labelledby="alH" tabindex="-1" hidden>
   <h1 id="alH">Your order is ready</h1>
   <div class="n" id="alN">0</div>
   <p>Please collect it from the counter.</p>
   <button class="btn" id="gotit">Got it</button>
 </div>
+<div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span><button id="undo" type="button" hidden>Undo</button></div>
+<div class="sr-only" id="announce" role="status" aria-live="polite"></div>
 <script src="vendor/capacitor.js"></script>
 <script src="vendor/app.js"></script>
 <script src="vendor/haptics.js"></script>
@@ -68,7 +134,12 @@
 <script src="vendor/keep-awake.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/native.js"></script>
+<script src="js/token-rules.js"></script>
+<script src="js/notify-rules.js"></script>
+<script src="js/entry-rules.js"></script>
 <script src="js/store.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/settings-ui.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
