@@ -364,12 +364,14 @@
   async function startBoard() {
     if (boardStarted) return;
     boardStarted = true;
-    $('staff-auth').hidden = true;
-    $('v-admin').hidden = false;
     wireKeys();
     wireUi();
     OBStore.onChange(function () { render(); });
+    // Keep the counter hidden until Firestore is attached; otherwise a token added in the first
+    // second after sign-in would only be saved on this phone and never reach the live board.
     await OBStore.init();
+    $('staff-auth').hidden = true;
+    $('v-admin').hidden = false;
     render();
     setInterval(render, 30000);
   }
