@@ -60,6 +60,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Firebase config (GoogleService-Info plist from secret)
+        env:
+          PLIST_B64: ${{ matrix.name == 'student' && secrets.IOS_GOOGLE_SERVICE_INFO_STUDENT_BASE64 || secrets.IOS_GOOGLE_SERVICE_INFO_STAFF_BASE64 }}
+        run: |
+          set -euo pipefail
+          TARGET_FILE="ios/GoogleService-Info-${{ matrix.name }}.plist"
+          if [ -n "$PLIST_B64" ]; then
+            printf '%s' "$PLIST_B64" | base64 --decode > "$TARGET_FILE"
+            plutil -lint "$TARGET_FILE" >/dev/null
+            echo "::notice title=Firebase ENABLED (${{ matrix.name }})::Plist written from the IOS_GOOGLE_SERVICE_INFO_*_BASE64 secret (not committed)."
+          else
+            echo "::warning title=Firebase config missing (${{ matrix.name }})::Secret IOS_GOOGLE_SERVICE_INFO_$(echo '${{ matrix.name }}' | tr a-z A-Z)_BASE64 is not available (e.g. a PR from a fork). Building in LOCAL mode with no Firebase."
+          fi
+
       - name: Build for iOS Simulator
         run: |
           set -euo pipefail
@@ -72,6 +86,23 @@ jobs:
             -derivedDataPath build \
             clean build \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Verify Firebase config in the built app
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find build/Build/Products -type d -name "${{ matrix.app_name }}" | head -n 1)
+          BUILT="$APP_PATH/GoogleService-Info.plist"
+          SRC="ios/GoogleService-Info-${{ matrix.name }}.plist"
+          if [ -f "$SRC" ]; then
+            test -f "$BUILT" || { echo "::error::Plist was provided but is missing from the built app"; exit 1; }
+            PID=$(/usr/libexec/PlistBuddy -c "Print :PROJECT_ID" "$BUILT")
+            BID=$(/usr/libexec/PlistBuddy -c "Print :BUNDLE_ID" "$BUILT")
+            echo "Built app uses Firebase project: $PID, bundle id: $BID"
+            test "$PID" = "cue-orderboard-sharan" || { echo "::error::Unexpected Firebase project $PID"; exit 1; }
+          else
+            test ! -f "$BUILT" || { echo "::error::Built app contains a plist that was not provided"; exit 1; }
+            echo "Local mode build confirmed (no plist in the app)."
+          fi
 
       - name: Package .app artifact
         run: |

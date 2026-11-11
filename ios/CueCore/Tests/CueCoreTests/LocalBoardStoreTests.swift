@@ -224,4 +224,58 @@ final class LocalBoardStoreTests: XCTestCase {
         XCTAssertEqual(t2, 11)
         XCTAssertTrue(store.view().preparing.contains(where: { $0.token == 11 }))
     }
+
+    func testIssueTokenRefusesActiveTokenAndAllowsFreeOnes() async throws {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+
+        let added = try await store.issueToken(7)
+        XCTAssertEqual(added.token, 7)
+        XCTAssertEqual(added.readyMs, 0)
+
+        // Preparing -> refused
+        do {
+            _ = try await store.issueToken(7)
+            XCTFail("an active token must be refused")
+        } catch let error as BoardError {
+            XCTAssertEqual(error, .tokenInUse(7))
+            XCTAssertEqual(error.errorDescription, "Token 7 is already in use")
+        }
+
+        // Ready (< 20 min) -> still refused
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        try await store.write(token: 7, fields: OrderWriteFields(readyMs: now))
+        do {
+            _ = try await store.issueToken(7)
+            XCTFail("a ready token must be refused")
+        } catch let error as BoardError {
+            XCTAssertEqual(error, .tokenInUse(7))
+        }
+
+        // Collected -> free again
+        try await store.write(token: 7, fields: OrderWriteFields(collectedMs: now))
+        let again = try await store.issueToken(7)
+        XCTAssertEqual(again.collectedMs, 0)
+        XCTAssertEqual(again.readyMs, 0)
+    }
+
+    func testIssueTokenRejectsOutOfRange() async {
+        let store = LocalBoardStore(userDefaults: userDefaults)
+        for bad in [0, -3, 201] {
+            do {
+                _ = try await store.issueToken(bad)
+                XCTFail("token \(bad) must be rejected")
+            } catch let error as BoardError {
+                XCTAssertEqual(error, .invalidToken)
+            } catch {
+                XCTFail("unexpected error \(error)")
+            }
+        }
+    }
+
+    func testBoardErrorSurvivesNSErrorRoundTrip() {
+        let ns = BoardError.tokenInUse(42).asNSError
+        XCTAssertEqual(BoardError(nsError: ns), .tokenInUse(42))
+        XCTAssertEqual(BoardError(nsError: BoardError.invalidToken.asNSError), .invalidToken)
+        XCTAssertNil(BoardError(nsError: NSError(domain: "other", code: 409)))
+    }
 }

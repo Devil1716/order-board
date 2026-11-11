@@ -139,6 +139,65 @@ public class FirestoreBoardStore: BoardStore {
         }
     }
 
+    /// Transactional typed add: reads `orders/{token}`, refuses if it still holds its token, otherwise writes
+    /// `{t, r, c}` in the same transaction (same semantics as `issueToken` in `shared/js/store.js`).
+    @discardableResult
+    public func issueToken(_ token: Int) async throws -> Order {
+        guard TokenRules.isValidToken(token) else { throw BoardError.invalidToken }
+        let orderRef = db.collection("orders").document(String(token))
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                db.runTransaction({ transaction, errorPointer -> Any? in
+                    let snapshot: DocumentSnapshot
+                    do {
+                        snapshot = try transaction.getDocument(orderRef)
+                    } catch {
+                        errorPointer?.pointee = error as NSError
+                        return nil
+                    }
+                    var existing: Order? = nil
+                    if snapshot.exists, let data = snapshot.data() {
+                        existing = Order(
+                            token: token,
+                            createdMs: (data["t"] as? NSNumber)?.int64Value ?? 0,
+                            readyMs: (data["r"] as? NSNumber)?.int64Value ?? 0,
+                            collectedMs: (data["c"] as? NSNumber)?.int64Value ?? 0
+                        )
+                    }
+                    if TokenRules.isTaken(existing, nowMs: now) {
+                        errorPointer?.pointee = BoardError.tokenInUse(token).asNSError
+                        return nil
+                    }
+                    transaction.setData(["t": now, "r": 0, "c": 0], forDocument: orderRef, merge: true)
+                    return nil
+                }) { _, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+        } catch {
+            if let board = Self.boardError(from: error) { throw board }
+            syncLabelSubject.send("Could not sync. Check connection — local copy is safe.")
+            throw error
+        }
+
+        let order = localStore.writeSync(token: token, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+        ordersSubject.send(localStore.getOrders())
+        syncLabelSubject.send("Live with the counter.")
+        return order
+    }
+
+    /// Recovers a `BoardError` that crossed Firestore's `NSError` boundary.
+    private static func boardError(from error: Error) -> BoardError? {
+        if let board = error as? BoardError { return board }
+        return BoardError(nsError: error as NSError)
+    }
+
     public func issueNextToken() async throws -> Int {
         try await issueNextTokenWithCursor().token
     }

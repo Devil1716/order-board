@@ -38,10 +38,51 @@ public protocol BoardStore: AnyObject {
     func setNextStart(_ token: Int) async throws
     func restoreNextStart(from allocation: TokenAllocation) async throws -> Bool
 
+    /// Staff adds a typed token. Never overwrites an active order: the check and the write happen in one
+    /// transaction (Firestore) so two phones cannot both add it. Throws `BoardError.tokenInUse`.
+    @discardableResult
+    func issueToken(_ token: Int) async throws -> Order
+
     /// Atomically reserves and creates the next available order token (1–200).
     /// Prevents two staff devices from issuing the same token via Firestore atomic transactions.
     func issueNextToken() async throws -> Int
     func issueNextTokenWithCursor() async throws -> TokenAllocation
+}
+
+/// Errors the stores raise on purpose, with messages fit to show staff. Mirrors the codes in `shared/js/store.js`.
+public enum BoardError: LocalizedError, Equatable {
+    case invalidToken
+    case tokenInUse(Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidToken: return "Check the token number."
+        case .tokenInUse(let n): return "Token \(n) is already in use"
+        }
+    }
+
+    public static let nsDomain = "in.sharan.orderboard.board"
+
+    /// Form that survives a trip through Firestore's `NSError`-only transaction callbacks.
+    public var asNSError: NSError {
+        switch self {
+        case .invalidToken:
+            return NSError(domain: Self.nsDomain, code: 400, userInfo: [NSLocalizedDescriptionKey: errorDescription ?? ""])
+        case .tokenInUse(let n):
+            return NSError(domain: Self.nsDomain, code: 409, userInfo: [NSLocalizedDescriptionKey: errorDescription ?? "", "token": n])
+        }
+    }
+
+    public init?(nsError: NSError) {
+        guard nsError.domain == Self.nsDomain else { return nil }
+        if nsError.code == 409, let n = nsError.userInfo["token"] as? Int {
+            self = .tokenInUse(n)
+        } else if nsError.code == 400 {
+            self = .invalidToken
+        } else {
+            return nil
+        }
+    }
 }
 
 public struct TokenAllocation {

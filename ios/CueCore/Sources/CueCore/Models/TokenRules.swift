@@ -7,10 +7,51 @@ import Foundation
 public enum TokenRules {
     public static let minToken: Int = 1
     public static let maxToken: Int = 200
-    public static let defaultExpiryMinutes: Int = 20
-    public static let expiryMs: Int64 = Int64(defaultExpiryMinutes * 60 * 1000)
-    public static let staleWindowHours: Int = 4
-    public static let staleWindowMs: Int64 = Int64(staleWindowHours * 3600 * 1000)
+
+    /// Built-in values. They equal the limits enforced by `firestore.rules` and `shared/js/token-rules.js`.
+    public static let baseExpiryMinutes: Int = 20
+    public static let baseStaleWindowHours: Int = 4
+
+    private static let lock = NSLock()
+    private static var _expiryMinutes: Int = baseExpiryMinutes
+    private static var _staleWindowHours: Int = baseStaleWindowHours
+
+    /// Minutes a ready order keeps its token. Remote Config may lengthen it, never shorten it.
+    public static var defaultExpiryMinutes: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _expiryMinutes
+    }
+
+    /// Hours after which an order is stale. Remote Config may lengthen it, never shorten it.
+    public static var staleWindowHours: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _staleWindowHours
+    }
+
+    public static var expiryMs: Int64 { Int64(defaultExpiryMinutes) * 60 * 1000 }
+    public static var staleWindowMs: Int64 { Int64(staleWindowHours) * 3600 * 1000 }
+
+    /// Applies server-driven thresholds. Values are clamped to [base, max]: `firestore.rules` holds a token
+    /// for the base values (minus a 1 min grace), so a shorter client window would have re-issue writes rejected.
+    /// Shortening the real limits needs a rules deploy plus an app release, not Remote Config.
+    public static func applyRemote(expiryMinutes: Int?, staleWindowHours: Int?) {
+        lock.lock(); defer { lock.unlock() }
+        _expiryMinutes = min(max(expiryMinutes ?? baseExpiryMinutes, baseExpiryMinutes), 120)
+        _staleWindowHours = min(max(staleWindowHours ?? baseStaleWindowHours, baseStaleWindowHours), 24)
+    }
+
+    /// Restores the built-in thresholds (used by tests).
+    public static func resetRemote() {
+        applyRemote(expiryMinutes: nil, staleWindowHours: nil)
+    }
+
+    /// True while an order still holds its token: not stale, not collected, and (if ready) ready for at most
+    /// the expiry window. Same formula as `isTaken` in `shared/js/token-rules.js`.
+    public static func isTaken(_ order: Order?, nowMs: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) -> Bool {
+        guard let order else { return false }
+        if nowMs - order.createdMs > staleWindowMs || order.collectedMs != 0 { return false }
+        return order.readyMs == 0 || nowMs - order.readyMs <= expiryMs
+    }
 
     /// Validates if a token number is in the allowed range 1–200
     public static func isValidToken(_ token: Int) -> Bool {

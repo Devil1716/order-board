@@ -8,6 +8,7 @@ struct CueApp: App {
     var body: some Scene {
         WindowGroup {
             CueStudentContentView()
+                .cueUpdateGate(.student)
         }
     }
 }
