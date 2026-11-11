@@ -183,6 +183,31 @@
     return next;
   }
 
+  /** 'system' | 'light' | 'dark' as saved by the user (System = follow the phone). */
+  async function getThemeMode() {
+    return (await getSavedTheme()) || 'system';
+  }
+
+  async function setThemeMode(mode) {
+    var saved = mode === 'light' || mode === 'dark' ? mode : null;
+    await setSavedTheme(saved);
+    applyThemeAttr(saved);
+    return resolvedTheme(saved);
+  }
+
+  /** 'granted' | 'denied' | 'prompt' | 'unsupported' */
+  async function notifyStatus() {
+    function map(v) { return v === 'granted' ? 'granted' : v === 'denied' ? 'denied' : 'prompt'; }
+    var N = plugin('LocalNotifications');
+    if (N && N.checkPermissions) {
+      try { return map((await N.checkPermissions()).display); } catch (e) {}
+    }
+    try {
+      if (global.Notification) return map(Notification.permission);
+    } catch (e) {}
+    return 'unsupported';
+  }
+
   async function setupChrome() {
     if (!isNative) return;
     document.body.classList.add('native');
@@ -209,6 +234,11 @@
     batteryStatus: function () { return watchCall('batteryStatus'); },
     requestBatteryExemption: function () { return watchCall('requestBatteryExemption'); },
     requestNotifyPermission: requestNotifyPermission,
+    notifyStatus: notifyStatus,
+    openNotificationSettings: function () { return watchCall('openNotificationSettings'); },
+    getThemeMode: getThemeMode,
+    setThemeMode: setThemeMode,
+    plugin: plugin,
     prefsGet: prefsGet,
     prefsSet: prefsSet,
     prefsRemove: prefsRemove,

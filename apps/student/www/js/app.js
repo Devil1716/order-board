@@ -1,6 +1,8 @@
 (function () {
   var EXP = 20;
-  var snd = false, ac = null, alertsOn = false;
+  var snd = true, ac = null, alertsOn = false;
+  var settings = null, settingsUI = null;
+  var APP_VERSION = '1.1.0';
   var first = true, lastReadySig = null;
   var minesCache = [];
   /** Map token → readyMs already acknowledged (no re-alert until readyMs changes) */
@@ -9,13 +11,6 @@
   var dismissed = false, repeat = null;
 
   var $ = function (i) { return document.getElementById(i); };
-
-  function paintThemeBtn(mode) {
-    var b = $('themeBtn');
-    if (!b) return;
-    b.textContent = mode === 'dark' ? 'Dark' : 'Light';
-    b.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
-  }
 
   function chime() {
     if (!snd) return;
@@ -35,6 +30,7 @@
   }
 
   function buzz() {
+    if (settings && !settings.get('vibration')) return;
     if (window.OBNative) OBNative.buzz();
     else if (navigator.vibrate) {
       try { navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
@@ -342,7 +338,8 @@
     syncWatch();
     renderReadyStrip(R, now, tracking);
 
-    $('sync').textContent = OBStore.getSyncLabel();
+    var syncLbl = OBStore.getSyncLabel();
+    $('sync').textContent = /^Live/.test(syncLbl) ? '' : syncLbl;
     first = false;
   }
 
@@ -376,20 +373,13 @@
     } catch (e) {}
   }
 
-  /** Samsung and others stop background apps; offer the one-tap "don't optimise Cue" dialog. */
+  /** Samsung and others stop background apps: Settings offers the one-tap "don't optimise Cue" dialog. */
   function showBatteryHint() {
-    var b = $('battery');
-    if (!b || !window.OBNative) return;
-    OBNative.batteryStatus().then(function (r) {
-      b.hidden = !!(r && r.unrestricted);
-    });
+    if (settingsUI) settingsUI.refresh();
   }
 
   function enableAlerts() {
     alertsOn = true;
-    snd = true;
-    $('snd').setAttribute('aria-pressed', 'true');
-    $('snd').textContent = 'Sound on';
     askNotifyPermission();
     if (window.OBNative) OBNative.keepAwake(true);
     else {
@@ -417,27 +407,6 @@
       stopAlert();
       render();
     };
-    $('snd').onclick = function () {
-      snd = !snd;
-      this.setAttribute('aria-pressed', snd);
-      this.textContent = snd ? 'Sound on' : 'Sound off';
-      if (snd) chime();
-    };
-
-    if ($('themeBtn')) {
-      $('themeBtn').onclick = async function () {
-        var mode = window.OBNative ? await OBNative.toggleTheme() : (function () {
-          var cur = document.documentElement.getAttribute('data-theme') ||
-            (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-          var next = cur === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', next);
-          try { localStorage.setItem('ob-theme', next); } catch (e) {}
-          return next;
-        })();
-        paintThemeBtn(mode);
-      };
-    }
-
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) return;
       if (alertsOn && window.OBNative) OBNative.keepAwake(true);
@@ -445,33 +414,25 @@
       if (window.OBNative) OBNative.watchClearAll();
       render();
     });
-    if ($('battery')) {
-      $('battery').onclick = function () {
-        OBNative.requestBatteryExemption().then(function () { setTimeout(showBatteryHint, 1500); });
-      };
-    }
   }
 
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
     wireUi();
 
-    if (window.OBNative) {
-      var mode = await OBNative.initTheme();
-      paintThemeBtn(mode);
-    } else {
-      var saved = null;
-      try { saved = localStorage.getItem('ob-theme'); } catch (e) {}
-      paintThemeBtn(saved === 'dark' || (!saved && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
-    }
+    await OBNative.initTheme();
+    settings = OBSettings.create({ get: OBNative.prefsGet, set: OBNative.prefsSet }, { sound: true, vibration: true });
+    await settings.load();
+    snd = settings.get('sound');
+    settingsUI = OBSettingsUI.init({
+      settings: settings,
+      appName: 'Cue',
+      version: APP_VERSION,
+      onChange: function (key, on) { if (key === 'sound') { snd = on; if (on) chime(); } }
+    });
     minesCache = await OBStore.getMines();
     if (minesCache.length && !alertsOn) {
       alertsOn = true;
-      snd = true;
-      if ($('snd')) {
-        $('snd').setAttribute('aria-pressed', 'true');
-        $('snd').textContent = 'Sound on';
-      }
       if (window.OBNative && OBNative.hasWatcher()) showBatteryHint();
       else {
         try {

@@ -336,6 +336,22 @@
     isFirebase: function () { return !!fb; },
     restoreStaffSession: restoreStaffSession,
     signInStaff: signInStaff,
+    /** Email of the signed-in staff account ('' when not signed in or in local mode). */
+    staffEmail: function () {
+      try {
+        var u = firebaseModules && firebaseModules.auth && firebaseModules.auth.currentUser;
+        return (u && u.email) || '';
+      } catch (e) { return ''; }
+    },
+    signOutStaff: async function () {
+      if (unsubOrders) { unsubOrders(); unsubOrders = null; }
+      if (firebaseModules && firebaseModules.authMod) {
+        await firebaseModules.authMod.signOut(firebaseModules.auth);
+      }
+      fb = null;
+      orders = [];
+      persistLocal();
+    },
     /** Resolves when saved; rejects (after rolling back) if the counter rejects the write. */
     write: write,
     issueToken: issueToken,

@@ -103,4 +103,27 @@ public class CueWatchPlugin extends Plugin {
         }
         call.resolve();
     }
+
+    /** Opens Cue's notification settings (used when the permission was denied and can't be asked again). */
+    @PluginMethod
+    public void openNotificationSettings(PluginCall call) {
+        Intent i;
+        if (Build.VERSION.SDK_INT >= 26) {
+            i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+        } else {
+            i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getContext().getPackageName()));
+        }
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(i);
+        } catch (Exception e) {
+            Intent d = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getContext().getPackageName()));
+            d.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(d);
+        }
+        call.resolve();
+    }
 }

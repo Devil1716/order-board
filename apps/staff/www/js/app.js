@@ -2,18 +2,12 @@
   var EXP = 20;
   var POOL = 200;
   var snd = false, ac = null;
+  var settings = null;
+  var APP_VERSION = '1.0.0';
   var undoFn = null, toastT = null;
   var typed = '', showAllP = false, showAllR = false;
 
   var $ = function (i) { return document.getElementById(i); };
-
-  function paintThemeBtn(mode) {
-    var b = $('themeBtn');
-    if (!b) return;
-    b.textContent = mode === 'dark' ? 'Dark' : 'Light';
-    b.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
-  }
-
 
   function chime() {
     if (!snd) return;
@@ -232,7 +226,8 @@
     }
 
     drawEntry();
-    $('sync').textContent = OBStore.getSyncLabel();
+    var syncLbl = OBStore.getSyncLabel();
+    $('sync').textContent = /^Live/.test(syncLbl) ? '' : syncLbl;
   }
 
   function press(k) {
@@ -273,22 +268,6 @@
     handOver(n);
   }
 
-  function wireTheme() {
-    if ($('themeBtn')) {
-      $('themeBtn').onclick = async function () {
-        var mode = window.OBNative ? await OBNative.toggleTheme() : (function () {
-          var cur = document.documentElement.getAttribute('data-theme') ||
-            (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-          var next = cur === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', next);
-          try { localStorage.setItem('ob-theme', next); } catch (e) {}
-          return next;
-        })();
-        paintThemeBtn(mode);
-      };
-    }
-  }
-
   function wireKeys() {
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', 'Delete'].forEach(function (k) {
       var b = document.createElement('button');
@@ -327,7 +306,7 @@
       undoFn = null;
     };
     document.addEventListener('keydown', function (ev) {
-      if (ev.metaKey || ev.ctrlKey || ev.target.tagName === 'INPUT') return;
+      if (ev.metaKey || ev.ctrlKey || ev.target.tagName === 'INPUT' || document.body.classList.contains('settings-open')) return;
       if (/^\d$/.test(ev.key)) press(ev.key);
       else if (ev.key === 'Backspace') press('Delete');
       else if (ev.key === 'Escape') press('Clear');
@@ -340,24 +319,19 @@
         }
       }
     });
-    $('snd').onclick = function () {
-      snd = !snd;
-      this.setAttribute('aria-pressed', snd);
-      this.textContent = snd ? 'Sound on' : 'Sound off';
-      if (snd) chime();
-    };
-
   }
 
-  async function initTheme() {
-    wireTheme();
-    if (window.OBNative) {
-      paintThemeBtn(await OBNative.initTheme());
-    } else {
-      var saved = null;
-      try { saved = localStorage.getItem('ob-theme'); } catch (e) {}
-      paintThemeBtn(saved === 'dark' || (!saved && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
-    }
+  async function initSettings() {
+    await OBNative.initTheme();
+    settings = OBSettings.create({ get: OBNative.prefsGet, set: OBNative.prefsSet }, { sound: false });
+    await settings.load();
+    snd = settings.get('sound');
+    OBSettingsUI.init({
+      settings: settings,
+      appName: 'Cue Staff',
+      version: APP_VERSION,
+      onChange: function (key, on) { if (key === 'sound') { snd = on; if (on) chime(); } }
+    });
   }
 
   var boardStarted = false;
@@ -395,7 +369,7 @@
 
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
-    await initTheme();
+    await initSettings();
     if (window.ORDER_BOARD_STAFF_APP && window.ORDER_BOARD_FIREBASE) {
       showAuth('');
       $('staff-auth-form').onsubmit = async function (event) {

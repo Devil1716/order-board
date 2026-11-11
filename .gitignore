@@ -64,6 +64,8 @@ apps/*/www/css/
 apps/*/www/js/store.js
 apps/*/www/js/token-rules.js
 apps/*/www/js/notify-rules.js
+apps/*/www/js/settings.js
+apps/*/www/js/settings-ui.js
 apps/*/www/js/native.js
 apps/*/www/js/firebase-config.js
 apps/*/www/vendor/
