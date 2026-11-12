@@ -9,6 +9,16 @@
 
   var $ = function (i) { return document.getElementById(i); };
 
+  /** Assigning textContent replaces the text node and dirties layout even when the text is the same. */
+  function setText(id, text) {
+    var el = $(id);
+    if (el.textContent !== text) el.textContent = text;
+  }
+  function setHidden(id, hidden) {
+    var el = $(id);
+    if (el.hidden !== hidden) el.hidden = hidden;
+  }
+
   function chime() {
     if (!snd) return;
     try {
@@ -118,22 +128,25 @@
     var inUse = st.kind === 'preparing' || st.kind === 'ready' || st.kind === 'conflict';
     var warn = st.kind === 'recent';
 
-    e.textContent = typed || 'Type a token';
-    e.className = 'entry' + (typed ? '' : ' ph') + (inUse || st.kind === 'invalid' ? ' bad' : warn ? ' warn' : '') +
+    setText('entry', typed || 'Type a token');
+    var entryCls = 'entry' + (typed ? '' : ' ph') + (inUse || st.kind === 'invalid' ? ' bad' : warn ? ' warn' : '') +
       (e.classList.contains('shake') ? ' shake' : '');
+    if (e.className !== entryCls) e.className = entryCls;
 
     mb.disabled = !n || st.kind === 'invalid' || st.kind === 'conflict';
-    mb.textContent = !n ? 'Add token'
+    var mbText = !n ? 'Add token'
       : st.kind === 'preparing' ? 'Mark ' + n + ' ready'
       : st.kind === 'ready' ? 'Hand over ' + n
       : warn ? 'Add ' + n + ' again'
       : st.kind === 'free' ? 'Add token ' + n
       : 'Add token';
-    $('handRem').hidden = st.kind !== 'preparing';
+    setText('mainBtn', mbText);
+    setHidden('handRem', st.kind !== 'preparing');
 
     var card = $('inuse');
     card.hidden = !(inUse || warn);
-    card.className = 'inuse' + (warn ? ' warn' : '');
+    var cardCls = 'inuse' + (warn ? ' warn' : '');
+    if (card.className !== cardCls) card.className = cardCls;
     if (!card.hidden) {
       $('inuseTitle').textContent = st.title;
       $('inuseMsg').textContent = st.message;
@@ -156,70 +169,91 @@
     if ((st.kind === 'preparing' || st.kind === 'ready') && typedComplete() && key !== shakeKey) shakeEntry();
     shakeKey = key;
 
-    $('keyHint').hidden = !(!n || st.kind === 'free');
-    $('keyHint').textContent = !n
+    setHidden('keyHint', !(!n || st.kind === 'free'));
+    setText('keyHint', !n
       ? 'The red button changes based on the number.'
-      : 'Free — tap Add.';
+      : 'Free — tap Add.');
   }
+
+  var lastTilesSig = '', lastReadySig = '';
 
   function render() {
     var V = view(), P = V.prep, R = V.rd;
     var q = typed, LIM = 8;
     function mt(h) { return !q || String(h.n).indexOf(q) >= 0; }
     var PP = P.filter(mt), RR = R.filter(mt);
-    $('prepH').textContent = P.length ? ('Up next · ' + P.length) : 'Up next';
-    $('prepHint').textContent = q
+    setText('prepH', P.length ? ('Up next · ' + P.length) : 'Up next');
+    setText('prepHint', q
       ? 'Filtered to “' + q + '”.'
-      : (P.length ? 'Oldest first — tap a token when it is ready.' : 'Quiet for now.');
-    var tl = $('tiles'); tl.innerHTML = '';
-    if (!PP.length) {
-      tl.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">' +
-        (q ? 'No match for ' + q + '.' : 'No orders preparing.') +
-        '</p>';
-    }
+      : (P.length ? 'Oldest first — tap a token when it is ready.' : 'Quiet for now.'));
     var now = Date.now();
-    (q || showAllP ? PP : PP.slice(0, LIM)).forEach(function (h) {
-      var d = document.createElement('div');
-      d.className = 'tile' + (h === P[0] ? ' first' : '');
-      var b = document.createElement('button');
-      b.className = 'tnum'; b.textContent = h.n;
-      b.setAttribute('aria-label', 'Token ' + h.n + ' is ready');
-      b.onclick = function () { callReady(h.n); };
-      var ageMin = Math.floor((now - h.t) / 60000);
-      var ageEl = document.createElement('span');
-      ageEl.className = 'tage';
-      ageEl.textContent = ageMin < 1 ? '<1m' : ageMin + 'm';
-      var x = document.createElement('button');
-      x.className = 'tx'; x.textContent = 'Cancel order';
-      x.setAttribute('aria-label', 'Cancel order for token ' + h.n);
-      x.onclick = function () { handOver(h.n); };
-      d.appendChild(b); d.appendChild(ageEl); d.appendChild(x); tl.appendChild(d);
-    });
-    var mp = $('moreP');
-    mp.hidden = !!q || PP.length <= LIM;
-    mp.textContent = showAllP ? 'Show fewer' : 'Show all ' + PP.length;
+    var ageOf = function (h) {
+      var m = Math.floor((now - h.t) / 60000);
+      return m < 1 ? '<1m' : m + 'm';
+    };
 
-    $('offWrap').hidden = !R.length;
-    $('readyH').textContent = R.length ? ('Ready · ' + R.length) : 'Ready';
-    var ot = $('offTiles'); ot.innerHTML = '';
-    (q || showAllR ? RR : RR.slice(0, LIM)).forEach(function (h) {
-      var b = document.createElement('button');
-      b.className = 'tile ok tbtn'; b.textContent = h.n;
-      b.setAttribute('aria-label', 'Token ' + h.n + ' handed over, take off the board');
-      b.onclick = function () { handOver(h.n); };
-      ot.appendChild(b);
-    });
-    var mr = $('moreR');
-    mr.hidden = !!q || RR.length <= LIM;
-    mr.textContent = showAllR ? 'Show fewer' : 'Show all ' + RR.length;
+    // The keypad calls render() on every key press; only rebuild a tile list when what it shows changed.
+    var shownP = q || showAllP ? PP : PP.slice(0, LIM);
+    var pSig = [q, showAllP, P.length ? P[0].n : 0].concat(shownP.map(function (h) { return h.n + ':' + ageOf(h); })).join('|');
+    if (pSig !== lastTilesSig) {
+      lastTilesSig = pSig;
+      var tl = $('tiles');
+      var frag = document.createDocumentFragment();
+      if (!PP.length) {
+        var none = document.createElement('p');
+        none.className = 'hint';
+        none.style.cssText = 'grid-column:1/-1;margin:0';
+        none.textContent = q ? 'No match for ' + q + '.' : 'No orders preparing.';
+        frag.appendChild(none);
+      }
+      shownP.forEach(function (h) {
+        var d = document.createElement('div');
+        d.className = 'tile' + (h === P[0] ? ' first' : '');
+        var b = document.createElement('button');
+        b.className = 'tnum'; b.textContent = h.n;
+        b.setAttribute('aria-label', 'Token ' + h.n + ' is ready');
+        b.onclick = function () { callReady(h.n); };
+        var ageEl = document.createElement('span');
+        ageEl.className = 'tage';
+        ageEl.textContent = ageOf(h);
+        var x = document.createElement('button');
+        x.className = 'tx'; x.textContent = 'Cancel order';
+        x.setAttribute('aria-label', 'Cancel order for token ' + h.n);
+        x.onclick = function () { handOver(h.n); };
+        d.appendChild(b); d.appendChild(ageEl); d.appendChild(x); frag.appendChild(d);
+      });
+      tl.textContent = '';
+      tl.appendChild(frag);
+    }
+    setHidden('moreP', !!q || PP.length <= LIM);
+    setText('moreP', showAllP ? 'Show fewer' : 'Show all ' + PP.length);
+
+    setHidden('offWrap', !R.length);
+    setText('readyH', R.length ? ('Ready · ' + R.length) : 'Ready');
+    var shownR = q || showAllR ? RR : RR.slice(0, LIM);
+    var rSig = [q, showAllR].concat(shownR.map(function (h) { return h.n; })).join('|');
+    if (rSig !== lastReadySig) {
+      lastReadySig = rSig;
+      var ot = $('offTiles');
+      var rf = document.createDocumentFragment();
+      shownR.forEach(function (h) {
+        var b = document.createElement('button');
+        b.className = 'tile ok tbtn'; b.textContent = h.n;
+        b.setAttribute('aria-label', 'Token ' + h.n + ' handed over, take off the board');
+        b.onclick = function () { handOver(h.n); };
+        rf.appendChild(b);
+      });
+      ot.textContent = '';
+      ot.appendChild(rf);
+    }
+    setHidden('moreR', !!q || RR.length <= LIM);
+    setText('moreR', showAllR ? 'Show fewer' : 'Show all ' + RR.length);
 
     var qo = $('quickOldest');
     if (qo) {
       if (P.length && !typed) {
-        var ageMin0 = Math.floor((Date.now() - P[0].t) / 60000);
-        var ageLbl = ageMin0 < 1 ? '<1m' : ageMin0 + 'm';
         qo.hidden = false;
-        qo.textContent = 'Mark ' + P[0].n + ' ready · ' + ageLbl;
+        setText('quickOldest', 'Mark ' + P[0].n + ' ready · ' + ageOf(P[0]));
       } else {
         qo.hidden = true;
       }
@@ -227,7 +261,7 @@
 
     drawEntry();
     var syncLbl = OBStore.getSyncLabel();
-    $('sync').textContent = /^Live/.test(syncLbl) ? '' : syncLbl;
+    setText('sync', /^Live/.test(syncLbl) ? '' : syncLbl);
   }
 
   function press(k) {

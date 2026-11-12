@@ -242,3 +242,14 @@ test('student: marking collected sends only c, and a rejection says why', async 
   await assert.rejects(s.write(10, { t: now, r: 0, c: 0 }), /couldn’t accept/);
   await assert.rejects(s.issueToken(11), /couldn’t accept/);
 });
+
+test('local-only: a burst of writes is saved to localStorage once, shortly after', async () => {
+  const s = loadStore();
+  await s.issueToken(1);
+  await s.issueToken(2);
+  await s.issueToken(3);
+  assert.equal(global.localStorage.getItem('ob-orders-v1'), null, 'not written synchronously on every update');
+  await new Promise((r) => setTimeout(r, 400));
+  const saved = JSON.parse(global.localStorage.getItem('ob-orders-v1'));
+  assert.deepEqual(saved.map((o) => o.n).sort((a, b) => a - b), [1, 2, 3]);
+});

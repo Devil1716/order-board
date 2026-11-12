@@ -213,13 +213,16 @@
     document.body.classList.add('native');
     var SB = plugin('StatusBar');
     var SS = plugin('SplashScreen');
-    try {
-      if (SB && SB.setBackgroundColor) await SB.setBackgroundColor({ color: '#e60023' });
-      if (SB && SB.setStyle) await SB.setStyle({ style: 'DARK' });
-    } catch (e) {}
-    try {
-      if (SS && SS.hide) await SS.hide();
-    } catch (e) {}
+    // Independent bridge calls: run them side by side instead of one after another.
+    var tasks = [];
+    if (SB && SB.setBackgroundColor) tasks.push(function () { return SB.setBackgroundColor({ color: '#e60023' }); });
+    if (SB && SB.setStyle) tasks.push(function () { return SB.setStyle({ style: 'DARK' }); });
+    if (SS && SS.hide) tasks.push(function () { return SS.hide(); });
+    await Promise.all(tasks.map(function (run) {
+      return new Promise(function (resolve) {
+        try { Promise.resolve(run()).then(resolve, resolve); } catch (e) { resolve(); }
+      });
+    }));
   }
 
   global.OBNative = {

@@ -373,13 +373,30 @@
     if (!first && sig !== null && sig !== lastReadySig && !isMine(R[0].n)) chime();
     lastReadySig = sig;
 
-    renderMineList(P, now);
+    // Rebuild the lists only when what they show has changed. Firestore reports metadata-only
+    // snapshots and the 30 s tick usually changes nothing, and each rebuild costs layout + paint.
+    var sig = paintSignature(P, R, now, tracking);
+    if (sig !== lastPaintSig) {
+      lastPaintSig = sig;
+      renderMineList(P, now);
+      renderReadyStrip(R, now, tracking);
+    }
     maybeAlert(now);
     syncWatch();
-    renderReadyStrip(R, now, tracking);
 
-    $('sync').textContent = '';   // connection state lives in the offline banner and Settings
     first = false;
+  }
+
+  var lastPaintSig = null;
+  function paintSignature(P, R, now, tracking) {
+    var parts = [tracking ? 'T' : 'E', readyOpen, minesCache.length];
+    myToks().forEach(function (n) {
+      var st = tokenState(n, P, now);
+      parts.push(n, st.kind, st.status, st.sub, st.age);
+    });
+    R.slice(0, 13).forEach(function (h) { parts.push(h.n, fmtAge(now - h.r), isMine(h.n)); });
+    parts.push(R.length);
+    return parts.join('|');
   }
 
   function fieldMsg(id, text, kind) {
@@ -498,6 +515,7 @@
       $('strip').hidden = !open;
       $('readyContext').classList.toggle('open', open);
       this.setAttribute('aria-expanded', open ? 'true' : 'false');
+      lastPaintSig = null;
     };
     $('undo').onclick = function () {
       $('toast').hidden = true;
@@ -538,12 +556,20 @@
   }
 
   async function boot() {
-    if (window.OBNative) await OBNative.setupChrome();
+    // Start everything that doesn't depend on anything else at once: the counter connection
+    // (Firebase SDK is bundled, so this is fast), the Capacitor chrome calls and the saved prefs.
+    var initP = OBStore.init().catch(function () {});
+    var chromeP = window.OBNative ? OBNative.setupChrome() : Promise.resolve();
     wireUi();
 
-    await OBNative.initTheme();
     settings = OBSettings.create({ get: OBNative.prefsGet, set: OBNative.prefsSet }, { sound: true, vibration: true });
-    await settings.load();
+    var loaded = await Promise.all([
+      OBNative.initTheme(),
+      settings.load(),
+      OBStore.getMines(),
+      OBNative.prefsGet(NOTIFY_DISMISS_KEY),
+      chromeP
+    ]);
     snd = settings.get('sound');
     settingsUI = OBSettingsUI.init({
       settings: settings,
@@ -551,22 +577,22 @@
       version: APP_VERSION,
       onChange: function (key, on) { if (key === 'sound') { snd = on; if (on) chime(); } }
     });
-    minesCache = await OBStore.getMines();
+    minesCache = loaded[2];
     $('skelEntry').hidden = minesCache.length > 0;
     $('skelTrack').hidden = minesCache.length === 0;
-    notifyDismissed = (await OBNative.prefsGet(NOTIFY_DISMISS_KEY)) === '1';
+    notifyDismissed = loaded[3] === '1';
     if (minesCache.length && !alertsOn) {
       alertsOn = true;
       if (window.OBNative) OBNative.keepAwake(true);
     }
     OBStore.onChange(function () { render(); });
     // Show the skeleton while the counter connects, but never leave the screen blank for long.
-    await Promise.race([OBStore.init(), new Promise(function (r) { setTimeout(r, 3000); })]);
+    await Promise.race([initP, new Promise(function (r) { setTimeout(r, 1500); })]);
     uiReady = true;
     render();
     refreshNotifyCard();
     showBatteryHint();
-    setInterval(render, 30000);
+    setInterval(function () { if (!document.hidden) render(); }, 30000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

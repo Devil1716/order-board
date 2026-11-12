@@ -20,6 +20,7 @@
   var LABEL_LIVE = 'Live with the counter.';
   var OFFLINE_AFTER_MS = 8000;
   var ERROR_LABEL_MS = 10000;
+  var PERSIST_DELAY_MS = 250;
 
   var TR = global.OBTokenRules;
   var orders = [];
@@ -30,6 +31,7 @@
   var unsubOrders = null;
   var firebaseModules = null;
   var writeSeq = {};
+  var lastSnapshotSig = null;
 
   function emit() {
     listeners.forEach(function (fn) {
@@ -42,10 +44,29 @@
     errorLabelUntil = holdMs ? Date.now() + holdMs : 0;
   }
 
-  function persistLocal() {
+  /**
+   * localStorage is synchronous disk I/O on Android WebView, so a burst of updates must not write
+   * once per update. Coalesce them into one write shortly after, and flush when the app is hidden.
+   */
+  var persistTimer = null;
+  function flushPersist() {
+    if (persistTimer === null) return;
+    clearTimeout(persistTimer);
+    persistTimer = null;
     try {
       localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
     } catch (e) {}
+  }
+
+  function persistLocal() {
+    if (persistTimer !== null) return;
+    persistTimer = setTimeout(flushPersist, PERSIST_DELAY_MS);
+    if (persistTimer && persistTimer.unref) persistTimer.unref();
+  }
+
+  if (global.document && global.document.addEventListener) {
+    global.document.addEventListener('visibilitychange', function () { if (global.document.hidden) flushPersist(); });
+    global.addEventListener('pagehide', flushPersist);
   }
 
   function loadLocal() {
@@ -202,20 +223,50 @@
     return applyLocal(n, { t: now, r: 0, c: 0 }).order;
   }
 
-  async function prepareFirebase() {
-    var cfg = global.ORDER_BOARD_FIREBASE;
-    if (!cfg || !cfg.apiKey || !cfg.projectId) return false;
-    if (firebaseModules) return true;
-    var appMod, authMod, fsMod, app;
-    var base = 'https://www.gstatic.com/firebasejs/10.14.1/';
-    appMod = await import(base + 'firebase-app.js');
-    if (global.ORDER_BOARD_STAFF_APP) {
-      authMod = await import(base + 'firebase-auth.js');
+  /**
+   * The Firebase SDK ships inside the app (vendor/firebase) so start-up never waits on the network for
+   * ~700 KB of scripts; the CDN is only a fallback. The three modules load in parallel.
+   */
+  var SDK_VERSION = '10.14.1';
+  var CDN_BASE = 'https://www.gstatic.com/firebasejs/' + SDK_VERSION + '/';
+  var LOCAL_BASE = null;
+  try {
+    if (global.document && global.document.currentScript && global.document.currentScript.src) {
+      LOCAL_BASE = new URL('../vendor/firebase/', global.document.currentScript.src).href;
     }
-    fsMod = await import(base + 'firebase-firestore.js');
+  } catch (e) {}
+  var preparing = null;
+
+  async function loadSdk(base) {
+    var wantAuth = !!global.ORDER_BOARD_STAFF_APP;
+    var parts = await Promise.all([
+      import(base + 'firebase-app.js'),
+      wantAuth ? import(base + 'firebase-auth.js') : null,
+      import(base + 'firebase-firestore.js')
+    ]);
+    return { appMod: parts[0], authMod: parts[1], fsMod: parts[2] };
+  }
+
+  function prepareFirebase() {
+    var cfg = global.ORDER_BOARD_FIREBASE;
+    if (!cfg || !cfg.apiKey || !cfg.projectId) return Promise.resolve(false);
+    if (firebaseModules) return Promise.resolve(true);
+    if (!preparing) {
+      preparing = doPrepareFirebase(cfg).catch(function (e) { preparing = null; throw e; });
+    }
+    return preparing;
+  }
+
+  async function doPrepareFirebase(cfg) {
+    var sdk;
+    if (LOCAL_BASE) {
+      try { sdk = await loadSdk(LOCAL_BASE); } catch (e) { sdk = null; }
+    }
+    if (!sdk) sdk = await loadSdk(CDN_BASE);
+    var appMod = sdk.appMod, authMod = sdk.authMod, fsMod = sdk.fsMod;
     var appCfg = {};
     Object.keys(cfg).forEach(function (k) { if (k !== 'emulator') appCfg[k] = cfg[k]; });
-    app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(appCfg);
+    var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(appCfg);
     var auth = authMod ? authMod.getAuth(app) : null;
     var db = fsMod.getFirestore(app);
     if (cfg.emulator) {
@@ -289,9 +340,15 @@
         var v = d.data() || {};
         next.push({ n: n, t: +v.t || 0, r: +v.r || 0, c: +v.c || 0 });
       });
-      orders = next;
-      pruneStale();
-      persistLocal();
+      var sig = next.map(function (o) { return o.n + ':' + o.t + ':' + o.r + ':' + o.c; }).join(',');
+      var changed = sig !== lastSnapshotSig;
+      lastSnapshotSig = sig;
+      var labelBefore = syncLabel;
+      if (changed) {
+        orders = next;
+        pruneStale();
+        persistLocal();
+      }
       if (Date.now() >= errorLabelUntil) {
         var meta = snap.metadata || {};
         if (meta.fromCache) {
@@ -302,7 +359,8 @@
           setLabel(LABEL_LIVE);
         }
       }
-      emit();
+      // Firestore also reports metadata-only changes (pending write acknowledged, etc.); repaint only when something visible changed.
+      if (changed || syncLabel !== labelBefore) emit();
     }, function () {
       setLabel('Firestore error — using local copy.');
       emit();
@@ -350,6 +408,8 @@
       emit();
     },
     isFirebase: function () { return !!fb; },
+    /** Start fetching the Firebase SDK now, in parallel with the rest of start-up. Safe to call more than once. */
+    warm: function () { prepareFirebase().catch(function () {}); },
     restoreStaffSession: restoreStaffSession,
     signInStaff: signInStaff,
     /** Email of the signed-in staff account ('' when not signed in or in local mode). */
@@ -366,6 +426,7 @@
       }
       fb = null;
       orders = [];
+      lastSnapshotSig = null;
       persistLocal();
     },
     /** Resolves when saved; rejects (after rolling back) if the counter rejects the write. */
@@ -470,9 +531,11 @@
     _attachForTest: function (fsMod, db) { attachFirestore(fsMod, db); },
     _resetForTest: function () {
       orders = []; fb = null; writeSeq = {};
-      errorLabelUntil = 0; syncLabel = LABEL_LOCAL;
+      errorLabelUntil = 0; syncLabel = LABEL_LOCAL; lastSnapshotSig = null;
     }
   };
 
   global.OBStore = Store;
+  // Browser only: begin loading the Firebase SDK while the rest of the page is still starting.
+  if (global.document && global.document.currentScript) Store.warm();
 })(typeof window !== 'undefined' ? window : globalThis);
