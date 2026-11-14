@@ -242,6 +242,16 @@ public class LocalBoardStore: BoardStore {
         }
     }
 
+    @discardableResult
+    public func issueToken(_ token: Int) async throws -> Order {
+        guard TokenRules.isValidToken(token) else { throw BoardError.invalidToken }
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        if TokenRules.isTaken(queue.sync(execute: { orders.first(where: { $0.token == token }) }), nowMs: now) {
+            throw BoardError.tokenInUse(token)
+        }
+        return writeSync(token: token, fields: OrderWriteFields(createdMs: now, readyMs: 0, collectedMs: 0))
+    }
+
     public func issueNextToken() async throws -> Int {
         try await issueNextTokenWithCursor().token
     }

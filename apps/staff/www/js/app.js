@@ -402,6 +402,8 @@
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
     await initSettings();
+    // UI is up: confirm this web bundle booted (else the updater rolls back), then look for an OTA update.
+    if (window.OBOta) OBOta.init(window).start();
     if (window.ORDER_BOARD_STAFF_APP && window.ORDER_BOARD_FIREBASE) {
       showAuth('');
       $('staff-auth-form').onsubmit = async function (event) {

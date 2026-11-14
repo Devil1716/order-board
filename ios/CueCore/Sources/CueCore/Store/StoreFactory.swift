@@ -14,6 +14,7 @@ public enum StoreFactory {
             configureFirebaseIfNeeded()
             return FirestoreBoardStore()
         } else {
+            print("[Cue] GoogleService-Info.plist not found in the app bundle: running in local mode (no Firebase).")
             return LocalBoardStore()
         }
     }
@@ -67,5 +68,7 @@ public enum StoreFactory {
             FirebaseApp.configure()
         }
         isFirebaseConfigured = true
+        // Server-driven flags, thresholds and the minimum-version gate (no-op until Firebase is configured).
+        RemoteSettingsService.shared.start()
     }
 }

@@ -124,3 +124,110 @@ final class TokenRulesTests: XCTestCase {
         XCTAssertEqual(TokenRules.formatCompactAge(elapsedMs: 300_000), "5m")
     }
 }
+
+// MARK: - isTaken (parity with `isTaken` in shared/js/token-rules.js)
+
+final class TokenTakenTests: XCTestCase {
+    private let now: Int64 = 1_000_000_000_000
+
+    override func tearDown() {
+        TokenRules.resetRemote()
+        super.tearDown()
+    }
+
+    func testMissingOrderIsFree() {
+        XCTAssertFalse(TokenRules.isTaken(nil, nowMs: now))
+    }
+
+    func testPreparingOrderIsTaken() {
+        XCTAssertTrue(TokenRules.isTaken(Order(token: 5, createdMs: now - 60_000), nowMs: now))
+    }
+
+    func testCollectedOrderIsFree() {
+        XCTAssertFalse(TokenRules.isTaken(Order(token: 5, createdMs: now - 60_000, readyMs: now - 30_000, collectedMs: now - 10_000), nowMs: now))
+    }
+
+    func testStaleOrderIsFree() {
+        let fourHours: Int64 = 4 * 3600 * 1000
+        XCTAssertTrue(TokenRules.isTaken(Order(token: 5, createdMs: now - fourHours), nowMs: now))
+        XCTAssertFalse(TokenRules.isTaken(Order(token: 5, createdMs: now - fourHours - 1), nowMs: now))
+    }
+
+    func testReadyOrderHoldsTokenForTwentyMinutes() {
+        let created = now - 3_000_000
+        XCTAssertTrue(TokenRules.isTaken(Order(token: 5, createdMs: created, readyMs: now - 20 * 60_000), nowMs: now))
+        XCTAssertFalse(TokenRules.isTaken(Order(token: 5, createdMs: created, readyMs: now - 20 * 60_000 - 1), nowMs: now))
+    }
+
+    func testRemoteThresholdsCanLengthenButNeverShorten() {
+        TokenRules.applyRemote(expiryMinutes: 5, staleWindowHours: 1)
+        XCTAssertEqual(TokenRules.defaultExpiryMinutes, 20, "shorter than the rules value is ignored")
+        XCTAssertEqual(TokenRules.staleWindowHours, 4)
+
+        TokenRules.applyRemote(expiryMinutes: 30, staleWindowHours: 6)
+        XCTAssertEqual(TokenRules.defaultExpiryMinutes, 30)
+        XCTAssertEqual(TokenRules.staleWindowHours, 6)
+
+        TokenRules.applyRemote(expiryMinutes: 9999, staleWindowHours: 9999)
+        XCTAssertEqual(TokenRules.defaultExpiryMinutes, 120)
+        XCTAssertEqual(TokenRules.staleWindowHours, 24)
+
+        TokenRules.applyRemote(expiryMinutes: nil, staleWindowHours: nil)
+        XCTAssertEqual(TokenRules.defaultExpiryMinutes, 20)
+        XCTAssertEqual(TokenRules.staleWindowHours, 4)
+    }
+}
+
+// MARK: - Remote settings (Firebase-free logic)
+
+final class RemoteSettingsTests: XCTestCase {
+    override func tearDown() {
+        TokenRules.resetRemote()
+        super.tearDown()
+    }
+
+    func testVersionCompare() {
+        XCTAssertEqual(VersionCompare.compare("1.0.0", "1.0.0"), 0)
+        XCTAssertEqual(VersionCompare.compare("1.0", "1.0.0"), 0)
+        XCTAssertEqual(VersionCompare.compare("1.9.2", "1.10.0"), -1)
+        XCTAssertEqual(VersionCompare.compare("2.0", "1.99.99"), 1)
+        XCTAssertTrue(VersionCompare.isLess("1.0", than: "1.0.1"))
+        XCTAssertFalse(VersionCompare.isLess("1.0.1", than: "1.0"))
+    }
+
+    func testUpdateRequiredUsesPerAppMinimum() {
+        let s = RemoteSettings(values: [
+            RemoteSettings.Key.minVersionStudent: "1.2.0",
+            RemoteSettings.Key.minVersionStaff: ""
+        ])
+        XCTAssertTrue(s.updateRequired(for: .student, installedVersion: "1.1.9"))
+        XCTAssertFalse(s.updateRequired(for: .student, installedVersion: "1.2.0"))
+        XCTAssertFalse(s.updateRequired(for: .staff, installedVersion: "0.1"), "empty minimum never blocks")
+    }
+
+    func testDefaultsDoNotChangeBehaviour() {
+        let s = RemoteSettings(values: RemoteSettings.defaultValues)
+        XCTAssertFalse(s.updateRequired(for: .student, installedVersion: "1.0"))
+        XCTAssertFalse(s.updateRequired(for: .staff, installedVersion: "1.0"))
+        XCTAssertEqual(s.announcement, "")
+        s.applyThresholds()
+        XCTAssertEqual(TokenRules.defaultExpiryMinutes, 20)
+        XCTAssertEqual(TokenRules.staleWindowHours, 4)
+    }
+
+    func testUpdateURLMustBeHTTPS() {
+        XCTAssertNotNil(RemoteSettings(values: [RemoteSettings.Key.updateURL: "https://apps.apple.com/app/id1"]).safeUpdateURL)
+        XCTAssertNil(RemoteSettings(values: [RemoteSettings.Key.updateURL: "http://example.com"]).safeUpdateURL)
+        XCTAssertNil(RemoteSettings(values: [RemoteSettings.Key.updateURL: "javascript:alert(1)"]).safeUpdateURL)
+        XCTAssertNil(RemoteSettings().safeUpdateURL)
+    }
+
+    func testGarbageThresholdsFallBackToDefaults() {
+        RemoteSettings(values: [
+            RemoteSettings.Key.readyExpiryMinutes: "abc",
+            RemoteSettings.Key.staleWindowHours: ""
+        ]).applyThresholds()
+        XCTAssertEqual(TokenRules.defaultExpiryMinutes, 20)
+        XCTAssertEqual(TokenRules.staleWindowHours, 4)
+    }
+}
