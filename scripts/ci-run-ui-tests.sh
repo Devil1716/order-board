@@ -5,9 +5,10 @@ set -uo pipefail
 SIZE="$1"; MODE="$2"; shift 2
 OUT="$GITHUB_WORKSPACE/out"
 mkdir -p "$OUT/shots"
+rm -f /tmp/sim-$SIZE.env
 GITHUB_OUTPUT=/tmp/sim-$SIZE.env bash scripts/ci-pick-simulator.sh "$SIZE"
-UDID=$(grep '^udid=' /tmp/sim-$SIZE.env | cut -d= -f2)
-TAG=$(grep '^tag=' /tmp/sim-$SIZE.env | cut -d= -f2)
+UDID=$(grep '^udid=' /tmp/sim-$SIZE.env | tail -n1 | cut -d= -f2)
+TAG=$(grep '^tag=' /tmp/sim-$SIZE.env | tail -n1 | cut -d= -f2)
 [ "$MODE" = firebase ] && TAG="$TAG-firebase"
 ONLY=()
 for t in "$@"; do ONLY+=("-only-testing:$t"); done
