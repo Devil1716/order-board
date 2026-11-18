@@ -442,6 +442,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sharan.orderboard.staff;
 				PRODUCT_NAME = CueStaff;
 				SDKROOT = iphoneos;
@@ -467,6 +469,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sharan.orderboard.staff;
 				PRODUCT_NAME = CueStaff;
 				SDKROOT = iphoneos;
@@ -493,6 +497,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sharan.orderboard;
 				PRODUCT_NAME = Cue;
 				SDKROOT = iphoneos;
@@ -595,6 +601,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = in.sharan.orderboard;
 				PRODUCT_NAME = Cue;
 				SDKROOT = iphoneos;
