@@ -174,8 +174,9 @@ test('without the native plugin everything is a harmless no-op', async () => {
 // ---- release scripts ----
 
 test('lib: manifest + version helpers', () => {
-  assert.match(L.makeVersion('student', 'prod', new Date(Date.UTC(2026, 10, 12, 8, 5))), /^1\.1\.0-ota\.202611120805$/);
-  assert.match(L.makeVersion('staff', 'beta', new Date(Date.UTC(2026, 10, 12, 8, 5))), /^1\.0\.0-beta\.202611120805$/);
+  // Bundle versions start with the APK's versionName (read from build.gradle).
+  assert.equal(L.makeVersion('student', 'prod', new Date(Date.UTC(2026, 10, 12, 8, 5))), L.nativeVersionName('student') + '-ota.202611120805');
+  assert.equal(L.makeVersion('staff', 'beta', new Date(Date.UTC(2026, 10, 12, 8, 5))), L.nativeVersionName('staff') + '-beta.202611120805');
   const m = L.buildManifest({ app: 'staff', channel: 'beta', version: 'v', url: 'https://x/y.zip', sha256: SHA, minNativeVersion: '1.0.0' });
   assert.equal(O.validateManifest(Object.assign({}, m, { version: '1.0.0-beta.1' }), 'staff', 'beta'), null);
   assert.equal(L.releaseTag('staff', '1.0.0-ota.1'), 'ota-staff-1.0.0-ota.1');

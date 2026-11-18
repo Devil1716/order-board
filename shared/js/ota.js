@@ -5,8 +5,9 @@
  * Flow: boot -> markReady() (tells the plugin this bundle started; if this never runs the plugin rolls back
  * to the previous bundle after appReadyTimeout) -> a few seconds later check() fetches the channel manifest
  * from Firebase Hosting, decides with decide(), downloads the zip (hosted on GitHub Releases) verified by
- * sha256, and queues it with next() so it takes over when the app is backgrounded/restarted - never
- * mid-order.
+ * sha256, and queues it with next() so it takes over when the app is backgrounded - never mid-screen.
+ * setHold(true) (student app, while an order is being tracked) keeps the queued bundle waiting until the
+ * student has no order left, so a waiting student is never reloaded under them.
  *
  * Manifest (ota/<app>/<channel>.json):
  *   { schema:1, app, channel, version, url (https zip), sha256, minNativeVersion, maxNativeVersion?,
@@ -209,6 +210,22 @@
       }
     }
 
+    /**
+     * Hold a queued bundle while the user is in the middle of something (a student waiting on an order).
+     * The plugin installs a queued bundle when the app goes to the background; a 'kill' delay condition
+     * stops that until we cancel it (this plugin version only clears it from JS). Never throws.
+     */
+    var held = null;
+    async function setHold(on) {
+      on = !!on;
+      if (!updater || held === on) return;
+      held = on;
+      try {
+        if (on) await updater.setMultiDelay({ delayConditions: [{ kind: 'kill' }] });
+        else await updater.cancelDelay();
+      } catch (e) { log('setHold failed', e); }
+    }
+
     function check(force) {
       if (!checking) checking = doCheck(!!force).then(function (r) { checking = null; return r; }, function (e) { checking = null; throw e; });
       return checking;
@@ -242,7 +259,7 @@
     }
 
     var api = {
-      start: start, markReady: markReady, check: check, applyNow: applyNow,
+      start: start, markReady: markReady, check: check, applyNow: applyNow, setHold: setHold,
       getChannel: getChannel, setChannel: setChannel, getState: function () { return state; },
       onChange: function (fn) { listeners.push(fn); return function () { listeners = listeners.filter(function (x) { return x !== fn; }); }; }
     };

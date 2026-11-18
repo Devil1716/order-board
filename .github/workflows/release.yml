@@ -163,14 +163,19 @@ jobs:
         with: { distribution: temurin, java-version: "17" }
       - run: npm ci
       - run: npm run sync-shared
-      - name: Build APKs
+      - name: Build APKs (signed with the fixed Cue key)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          mkdir -p out
-          for a in student staff; do
-            (cd apps/$a && npx cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon)
-            cp apps/$a/android/app/build/outputs/apk/debug/app-debug.apk "out/Cue-$a-${OTA_CHANNEL}-${GITHUB_SHA::7}.apk"
-          done
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error title=Missing secret::ANDROID_KEYSTORE_BASE64 is not set. Release APKs must be signed with the fixed Cue key; see RELEASING.md"
+            exit 1
+          fi
+          bash scripts/build-apks.sh out "-${OTA_CHANNEL}-${GITHUB_SHA::7}"
       - uses: actions/upload-artifact@v4
         with:
           name: Cue-android-apks-${{ needs.plan.outputs.channel }}

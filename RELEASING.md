@@ -15,7 +15,7 @@ Most changes ship **over the air**. Only native changes need a new APK / App Sto
 Apple only allows changing *data* the shipped code reads (Remote Config), not downloading new code. The iOS apps therefore
 read their knobs from Remote Config and can force an update with a minimum-version screen.
 
-`remoteconfig.template.json` holds the keys: `min_version_student`, `min_version_staff`, `update_url`, `update_message`,
+`remoteconfig.template.json` holds the keys: `min_version_student`, `min_version_staff`, `update_url`, `update_message`, the Android update keys (`min_version_*_android`, `latest_version_*_android`, `update_url_android`),
 `announcement`, `ready_expiry_minutes`, `stale_window_hours`.
 Thresholds are clamped in the app to **at least** today's values (20 min / 4 h): `firestore.rules` holds a token for
 those periods, so a shorter client window would have re-issue writes rejected. Shortening needs a rules deploy plus an app release.
@@ -41,6 +41,48 @@ those periods, so a shorter client window would have re-issue writes rejected. S
   the beta APK from the *Release* workflow follows `beta`. `OBOta.setChannel('beta')` switches a device at runtime.
   Promote beta to prod by publishing to `prod` (it is rebuilt, not copied).
 * `minSdk` is 23 (Android 6.0), required by the updater plugin.
+
+## Ask people to install a new app version (update pop-up)
+
+Use this when an update needs a **new APK / App Store build** (OTA bundles install by themselves, see below).
+Everything is in **Firebase console > Remote Config**: edit the key, *Save*, *Publish changes*. Phones pick it
+up the next time the app opens or comes back to the screen (within about 15 minutes). Clear the value to switch it off.
+
+**Android (Cue and Cue Staff)**
+
+1. Put the new APK somewhere people can download it, or on Google Play.
+2. Set `update_url_android` to that link (Play listing or an `https://` APK link).
+3. Pick the kind of prompt, using the new APK's `versionName` (e.g. `1.3.0`):
+   * **Soft** (people can tap *Later*, asked again after 24 h): `latest_version_student_android` /
+     `latest_version_staff_android`.
+   * **Forced** (full screen, no way past it): `min_version_student_android` / `min_version_staff_android`.
+     The text comes from `update_message`.
+4. Publish. Phones with an older APK see the prompt. If the app came from Google Play and Play already has the
+   new version, *Update* runs Play's in-app update; otherwise it opens `update_url_android`.
+
+No prompt is ever shown without a link (or a Play update) to send people to, or if Remote Config can't be reached
+and nothing was cached.
+
+**iOS**: set `min_version_student` / `min_version_staff` (forced) and `update_url` (App Store / TestFlight link).
+
+**OTA web bundles** don't need any of this: they download in the background and install the next time the app
+is in the background. In the student app a downloaded bundle waits while the student is tracking an order.
+
+## Android signing (keep the same key forever)
+
+APKs only install over each other when they are signed with the **same key**. CI signs with the fixed Cue key
+from these secrets (release APKs); without them it falls back to a throwaway debug key and warns.
+
+| Secret | What |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 cue-release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore password |
+| `ANDROID_KEY_ALIAS` | `cue` |
+| `ANDROID_KEY_PASSWORD` | key password (same as the keystore password) |
+
+Keep an offline copy of `cue-release.jks` and its password. Losing it means every phone has to uninstall the app
+once to move to a new key (and on Google Play you would need Play's upload-key reset).
+Local build with the key: `CUE_KEYSTORE_FILE=/path/cue-release.jks CUE_KEYSTORE_PASSWORD=... bash scripts/build-apks.sh out`.
 
 ## Ship an OTA update
 
@@ -85,5 +127,4 @@ also reused by the Release workflow for iOS). Scripts: `scripts/release-ota.js`,
 2. Add the secrets above.
 3. Publish Remote Config once (`deploy_firebase` in the Release workflow) so the keys exist.
 4. Ship APKs built with this pipeline once (they contain the updater); after that web changes go OTA.
-5. Android release signing is **not** set up: CI builds debug-signed APKs, whose signature changes per runner. Sign with a
-   fixed keystore before handing APKs to customers who will install updates over them.
+5. Add the Android signing secrets (above) so every APK is signed with the same Cue key.
