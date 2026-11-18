@@ -5,8 +5,16 @@ import UIKit
 #endif
 
 public enum HapticsService {
+    private static let enabledKey = "ob-vibration"
+
+    /// Vibration setting from the settings page (on by default).
+    public static var isEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+    }
     /// Triple pulse pattern matching the web/Capacitor implementation
     public static func buzz() {
+        guard isEnabled else { return }
         #if os(iOS)
         let generator = UINotificationFeedbackGenerator()
         generator.prepare()
@@ -26,6 +34,7 @@ public enum HapticsService {
 
     /// Single tap / medium impact for keypad taps and state changes
     public static func impact() {
+        guard isEnabled else { return }
         #if os(iOS)
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
@@ -34,6 +43,7 @@ public enum HapticsService {
 
     /// Light feedback for number input
     public static func light() {
+        guard isEnabled else { return }
         #if os(iOS)
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
@@ -42,6 +52,7 @@ public enum HapticsService {
 
     /// Success notification feedback
     public static func success() {
+        guard isEnabled else { return }
         #if os(iOS)
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)

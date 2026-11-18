@@ -16,6 +16,15 @@ public enum NotificationService {
         }
     }
 
+    /// "Allowed", "Off" or "Not asked yet", for the settings page.
+    public static func statusText() async -> String {
+        switch await UNUserNotificationCenter.current().notificationSettings().authorizationStatus {
+        case .authorized, .provisional, .ephemeral: return "Allowed"
+        case .denied: return "Off — turn on in iOS Settings"
+        default: return "Not asked yet"
+        }
+    }
+
     public static func scheduleReadyNotification(token: Int) {
         let content = UNMutableNotificationContent()
         content.title = "Cue"

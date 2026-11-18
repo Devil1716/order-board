@@ -21,10 +21,15 @@ public struct CueAppearanceSection: View {
 
 public struct CueAlertsSection: View {
     @ObservedObject private var sound = SoundService.shared
+    @State private var vibration = HapticsService.isEnabled
+    @State private var notifyStatus = ""
+    @Environment(\.openURL) private var openURL
     private let subtitle: String
+    private let showNotifications: Bool
 
-    public init(subtitle: String) {
+    public init(subtitle: String, showNotifications: Bool = false) {
         self.subtitle = subtitle
+        self.showNotifications = showNotifications
     }
 
     public var body: some View {
@@ -41,6 +46,44 @@ public struct CueAlertsSection: View {
                 }
             }
             .tint(CueTheme.red)
+
+            Toggle(isOn: $vibration) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Vibration")
+                    Text("Vibrate on taps and alerts.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .tint(CueTheme.red)
+            .onChange(of: vibration) { HapticsService.isEnabled = $0 }
+
+            if showNotifications {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Notifications")
+                        Text(notifyStatus)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    if notifyStatus != "Allowed" {
+                        Button("Allow") {
+                            Task {
+                                if notifyStatus == "Not asked yet" {
+                                    _ = await NotificationService.requestPermission()
+                                } else if let url = URL(string: "app-settings:") {
+                                    openURL(url)
+                                }
+                                notifyStatus = await NotificationService.statusText()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(CueTheme.red)
+                    }
+                }
+                .task { notifyStatus = await NotificationService.statusText() }
+            }
         }
     }
 }

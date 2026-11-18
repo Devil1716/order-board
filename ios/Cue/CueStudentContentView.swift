@@ -57,7 +57,7 @@ public struct CueStudentContentView: View {
             NavigationStack {
                 Form {
                     CueAppearanceSection()
-                    CueAlertsSection(subtitle: "Play a chime when your order is ready.")
+                    CueAlertsSection(subtitle: "Play a chime when your order is ready.", showNotifications: true)
                     Section(header: Text("Sync")) {
                         Text(viewModel.syncLabel)
                             .font(.footnote)
