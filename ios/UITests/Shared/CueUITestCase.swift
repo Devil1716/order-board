@@ -14,10 +14,31 @@ class CueUITestCase: XCTestCase {
         continueAfterFailure = true
     }
 
-    func launch(_ args: [String] = [], theme: String = "light") {
+    func launch(_ args: [String] = [], theme: String = "light", env: [String: String] = [:]) {
         app = XCUIApplication()
         app.launchArguments = ["-ob-theme", theme] + args
+        app.launchEnvironment = env
         app.launch()
+    }
+
+    /// Opens settings from the header gear, picks a theme, takes a screenshot, closes it.
+    func setTheme(_ mode: String, shotName: String? = nil, file: StaticString = #filePath, line: UInt = #line) {
+        let gear = app.buttons["Settings"]
+        XCTAssertTrue(gear.waitForExistence(timeout: 5), "Header gear", file: file, line: line)
+        gear.tap()
+        let seg = app.buttons[mode]
+        XCTAssertTrue(seg.waitForExistence(timeout: 5), "Appearance option \(mode) in settings", file: file, line: line)
+        seg.tap()
+        if let shotName { shot(shotName) }
+        app.buttons["Done"].tap()
+        sleep(1)
+    }
+
+    /// Cue rule: the header holds only the logo and the gear.
+    func checkHeaderRule(_ appLabel: String) {
+        designRule(app.buttons["Settings"].exists, "\(appLabel) header has a gear that opens settings")
+        let extras = ["Light", "Dark", "Sound on", "Sound off", "My Orders", "Board View"].filter { app.buttons[$0].exists }
+        designRule(extras.isEmpty, "\(appLabel) header is logo + gear only (extra controls: \(extras))")
     }
 
     var nowMs: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }

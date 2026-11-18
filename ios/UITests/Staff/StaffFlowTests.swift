@@ -22,6 +22,7 @@ final class StaffFlowTests: CueUITestCase {
         XCTAssertTrue(app.staticTexts["Cue Staff"].waitForExistence(timeout: 10), "Staff main screen")
         shot("staff-02-empty-light")
         assertNoRangeText()
+        checkHeaderRule("Staff")
 
         // Give next token (auto numbering)
         app.buttons["Give this token"].tap()
@@ -63,33 +64,19 @@ final class StaffFlowTests: CueUITestCase {
         if quick.exists { quick.tap(); sleep(1) }
         shot("staff-09-after-quick-ready")
 
-        // Settings sheet from the gear
-        let gear = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'gear' OR label CONTAINS[c] 'setting' OR label CONTAINS[c] 'lock'")).firstMatch
-        XCTAssertTrue(gear.exists, "Gear button")
-        gear.tap()
-        XCTAssertTrue(app.navigationBars["Staff Settings"].waitForExistence(timeout: 5), "Settings sheet")
+        // Settings page from the gear
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5), "Settings sheet")
         shot("staff-10-settings-light")
         app.buttons["Done"].tap()
 
-        // Dark theme
-        app.buttons["Light"].tap()
-        XCTAssertTrue(app.buttons["Dark"].waitForExistence(timeout: 5), "Theme switched to Dark")
-        shot("staff-11-dark")
+        // Dark theme (chosen in settings)
+        setTheme("Dark", shotName: "staff-11-settings-dark")
+        shot("staff-12-dark")
         app.swipeUp()
-        shot("staff-12-dark-scrolled")
+        shot("staff-13-dark-scrolled")
         app.swipeDown()
-        gear.tap()
-        if app.navigationBars["Staff Settings"].waitForExistence(timeout: 5) {
-            shot("staff-13-settings-dark")
-            app.buttons["Done"].tap()
-        }
-        app.buttons["Dark"].tap() // back to light for the next run
-
-        // Design rule: header should be logo + gear only (theme/sound live in settings).
-        designRule(!(app.buttons["Sound on"].exists || app.buttons["Sound off"].exists),
-                   "Staff header is logo + gear only (sound toggle lives in settings)")
-        designRule(!(app.buttons["Light"].exists || app.buttons["Dark"].exists),
-                   "Staff header is logo + gear only (theme toggle lives in settings)")
+        setTheme("Light") // back to light for the next run
     }
 
     func test2_UpdateRequiredGate() throws {

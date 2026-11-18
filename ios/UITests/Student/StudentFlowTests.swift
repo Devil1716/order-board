@@ -1,7 +1,7 @@
 import XCTest
 
-/// Student app in LOCAL mode (no Firebase). Orders are seeded through the `ob-orders-v1`
-/// launch argument (read by LocalBoardStore), since local mode cannot see the staff phone.
+/// Student app in LOCAL mode (no Firebase). Orders are seeded through CUE_DEBUG_SEED_ORDERS
+/// (Debug-only, read by LocalBoardStore), since local mode cannot see the staff phone.
 final class StudentFlowTests: CueUITestCase {
 
     private func seededOrders() -> String {
@@ -13,13 +13,14 @@ final class StudentFlowTests: CueUITestCase {
             + "{\"n\":3,\"t\":\(n - 12 * 60_000),\"r\":\(n - 60_000),\"c\":0}]"
     }
 
-    func test1_TrackTokensBoardAndThemes() throws {
+    func test1_TrackTokensSettingsThemes() throws {
         try XCTSkipIf(isFirebaseRun, "local-mode test")
-        launch(["-ob-orders-v1", seededOrders()])
+        launch(env: ["CUE_DEBUG_SEED_ORDERS": seededOrders()])
 
         XCTAssertTrue(app.staticTexts["Enter your token"].waitForExistence(timeout: 15), "Empty entry screen")
         shot("student-01-enter-token-light")
         assertNoRangeText()
+        checkHeaderRule("Student")
 
         let field = app.textFields["000"]
         XCTAssertTrue(field.exists, "Token field")
@@ -30,12 +31,13 @@ final class StudentFlowTests: CueUITestCase {
         allowSystemAlertIfShown()
 
         XCTAssertTrue(app.staticTexts["Your order"].waitForExistence(timeout: 10), "Tracking card after Track")
-        XCTAssertTrue(app.staticTexts["Preparing"].exists || app.staticTexts["You’re next"].exists, "Token 12 shows a preparing state")
+        XCTAssertTrue(app.staticTexts["Preparing"].exists || app.staticTexts["You’re next"].exists,
+                      "Token 12 shows a preparing state")
         shot("student-03-tracking-12-preparing")
 
         // Students must never be able to mark an order collected.
-        let collectButtons = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'collect'"))
-        XCTAssertEqual(collectButtons.count, 0, "Student UI must not offer a collected button")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'collect'")).count, 0,
+                       "Student UI must not offer a collected button")
 
         // Track a second token that is already ready: full-screen alert.
         let add = app.textFields["000"]
@@ -44,37 +46,28 @@ final class StudentFlowTests: CueUITestCase {
             add.typeText("7")
             app.buttons["Add order"].tap()
         }
-        let alert = app.staticTexts["Your order is ready"]
-        XCTAssertTrue(alert.waitForExistence(timeout: 10), "Ready alert for token 7")
+        XCTAssertTrue(app.staticTexts["Your order is ready"].waitForExistence(timeout: 10), "Ready alert for token 7")
         shot("student-04-ready-alert-7")
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'collect'")).count, 0,
                        "Ready alert must not offer a collected button")
         if app.buttons["Got it"].exists { app.buttons["Got it"].tap() }
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "Keyboard closes after Add order")
         shot("student-05-two-orders")
         app.swipeUp()
         shot("student-06-two-orders-scrolled")
-
-        // Board view
         app.swipeDown()
-        let board = app.buttons["Board View"]
-        if board.waitForExistence(timeout: 5) { board.tap() }
-        shot("student-07-board-light")
         assertNoRangeText()
 
-        // Dark theme
-        let toggle = app.buttons["Light"]
-        XCTAssertTrue(toggle.exists, "Theme toggle")
-        toggle.tap()
-        XCTAssertTrue(app.buttons["Dark"].waitForExistence(timeout: 5), "Theme switched to Dark")
-        shot("student-08-board-dark")
-        app.buttons["My Orders"].tap()
-        shot("student-09-my-orders-dark")
-
-        // Settings page: Cue's rule is logo + gear in the header, theme inside settings.
-        let gear = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'setting' OR identifier CONTAINS[c] 'setting'")).firstMatch
-        designRule(gear.exists, "Student header has a gear that opens a settings page")
-        designRule(!(app.buttons["Light"].exists || app.buttons["Dark"].exists),
-                   "Student header is logo + gear only (theme toggle lives in settings)")
+        // Settings page from the gear: light, then dark.
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5), "Settings page")
+        shot("student-07-settings-light")
+        app.buttons["Done"].tap()
+        setTheme("Dark", shotName: "student-08-settings-dark")
+        shot("student-09-two-orders-dark")
+        app.swipeUp()
+        shot("student-10-two-orders-dark-scrolled")
+        app.swipeDown()
 
         // Clean up so the next run starts empty.
         while app.buttons["Remove"].firstMatch.exists {
@@ -82,7 +75,8 @@ final class StudentFlowTests: CueUITestCase {
             sleep(1)
         }
         XCTAssertTrue(app.staticTexts["Enter your token"].waitForExistence(timeout: 5), "Back to empty entry")
-        shot("student-10-enter-token-dark")
+        shot("student-11-enter-token-dark")
+        setTheme("Light")
     }
 
     func test2_UpdateRequiredGate() throws {
@@ -90,7 +84,7 @@ final class StudentFlowTests: CueUITestCase {
         launch(["-cueDebugMinVersion", "99.0", "-cueDebugAnnouncement", "Canteen closes at 4 pm today"])
         XCTAssertTrue(app.staticTexts["Update required"].waitForExistence(timeout: 15), "Forced update screen")
         XCTAssertTrue(app.buttons["Update"].exists, "Update button")
-        shot("student-11-update-required")
+        shot("student-12-update-required")
     }
 }
 
@@ -103,8 +97,7 @@ final class StudentFirebaseSmokeTests: CueUITestCase {
         sleep(8)
         XCTAssertFalse(element(containing: "On this phone only").exists, "Should be synced with Firebase, not local mode")
         shot("student-fb-01-my-orders")
-        if app.buttons["Board View"].exists { app.buttons["Board View"].tap() }
-        sleep(3)
-        shot("student-fb-02-live-board")
+        app.swipeUp()
+        shot("student-fb-02-live-board-scrolled")
     }
 }

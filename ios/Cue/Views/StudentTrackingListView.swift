@@ -5,6 +5,7 @@ public struct StudentTrackingListView: View {
     @ObservedObject var viewModel: CueStudentViewModel
     @Environment(\.colorScheme) private var colorScheme
     @State private var addTokenInput: String = ""
+    @FocusState private var isAddFocused: Bool
 
     public init(viewModel: CueStudentViewModel) {
         self.viewModel = viewModel
@@ -41,6 +42,7 @@ public struct StudentTrackingListView: View {
                         .monospacedDigit()
                         .multilineTextAlignment(.center)
                         .keyboardType(.numberPad)
+                        .focused($isAddFocused)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 16)
                         .background(CueTheme.bg(for: colorScheme))
@@ -61,6 +63,7 @@ public struct StudentTrackingListView: View {
                         }
 
                     Button {
+                        isAddFocused = false
                         if let n = Int(addTokenInput), TokenRules.isValidToken(n) {
                             addTokenInput = ""
                             Task {

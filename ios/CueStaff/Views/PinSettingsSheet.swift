@@ -18,6 +18,9 @@ public struct PinSettingsSheet: View {
     public var body: some View {
         NavigationStack {
             Form {
+                CueAppearanceSection()
+                CueAlertsSection(subtitle: "Chime when a token is marked ready.")
+
                 Section(header: Text("Staff Security")) {
                     Toggle("PIN Protection", isOn: $pinEnabled)
                         .onChange(of: pinEnabled) { newValue in
@@ -74,13 +77,15 @@ public struct PinSettingsSheet: View {
                     }
                 }
 
-                Section(header: Text("Sync Status")) {
+                Section(header: Text("Sync")) {
                     Text(viewModel.syncLabel)
                         .font(.footnote)
                         .foregroundColor(CueTheme.mute(for: colorScheme))
                 }
+
+                CueAboutSection(appName: "Cue Staff")
             }
-            .navigationTitle("Staff Settings")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

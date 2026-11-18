@@ -55,6 +55,14 @@ public class LocalBoardStore: BoardStore {
                   let decoded = try? JSONDecoder().decode([Order].self, from: data) {
             self.orders = decoded.filter { $0.token > 0 }
         }
+        #if DEBUG
+        // Simulator UI tests seed the board via the launch environment (Debug builds only).
+        if let seed = ProcessInfo.processInfo.environment["CUE_DEBUG_SEED_ORDERS"],
+           let data = seed.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([Order].self, from: data) {
+            self.orders = decoded.filter { $0.token > 0 }
+        }
+        #endif
     }
 
     private func pruneStaleInternal() {

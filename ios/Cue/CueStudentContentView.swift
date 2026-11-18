@@ -18,17 +18,13 @@ public struct CueStudentContentView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: CueTheme.space4) {
-                        if viewModel.viewMode == .myOrders {
-                            if viewModel.trackedTokens.isEmpty {
-                                StudentEmptyEntryView(viewModel: viewModel)
-                            } else {
-                                StudentTrackingListView(viewModel: viewModel)
-                            }
-
-                            StudentReadyStripView(viewModel: viewModel)
+                        if viewModel.trackedTokens.isEmpty {
+                            StudentEmptyEntryView(viewModel: viewModel)
                         } else {
-                            StudentBoardView(viewModel: viewModel)
+                            StudentTrackingListView(viewModel: viewModel)
                         }
+
+                        StudentReadyStripView(viewModel: viewModel)
 
                         // Sync Footer Label
                         Text(viewModel.syncLabel)
@@ -41,6 +37,7 @@ public struct CueStudentContentView: View {
                     .padding(.horizontal, CueTheme.gutter)
                     .padding(.top, 8)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
 
             // Full-screen Ready Alert
@@ -56,6 +53,28 @@ public struct CueStudentContentView: View {
             }
         }
         .preferredColorScheme(themeManager.mode.colorScheme)
+        .sheet(isPresented: $viewModel.showSettings) {
+            NavigationStack {
+                Form {
+                    CueAppearanceSection()
+                    CueAlertsSection(subtitle: "Play a chime when your order is ready.")
+                    Section(header: Text("Sync")) {
+                        Text(viewModel.syncLabel)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    CueAboutSection(appName: "Cue")
+                }
+                .navigationTitle("Settings")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { viewModel.showSettings = false }
+                    }
+                }
+            }
+            .preferredColorScheme(themeManager.mode.colorScheme)
+        }
         .animation(.easeInOut(duration: 0.25), value: viewModel.alertToken)
     }
 }

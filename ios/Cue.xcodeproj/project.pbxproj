@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		0182E881D7D00F074E5ABDF1 /* CueStudentHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C96A84720919C759B00FCC66 /* CueStudentHeaderView.swift */; };
-		237402C820DD243C48DC272A /* StudentBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3368DBC82026F3DE221F2D6C /* StudentBoardView.swift */; };
 		2C1FD2CA142BB299799D03A3 /* CueStaffApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C25B754FBF1164405B509B9 /* CueStaffApp.swift */; };
 		55F46FE04D29A5C2BD5F7061 /* StudentEmptyEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD351861F07BE85CEB809FB /* StudentEmptyEntryView.swift */; };
 		5842F69B5ADC28A9E029F25A /* PinGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B390152A4678E6285B2376E8 /* PinGateView.swift */; };
@@ -40,7 +39,6 @@
 		106C839D2EE423278F995AD1 /* CueStaffViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueStaffViewModel.swift; sourceTree = "<group>"; };
 		2A4DFD40558A4DA25442A0E7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2F49E7182ADC1C84FA8507D9 /* StaffKeypadPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaffKeypadPanel.swift; sourceTree = "<group>"; };
-		3368DBC82026F3DE221F2D6C /* StudentBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentBoardView.swift; sourceTree = "<group>"; };
 		35EDD0CEB2DDA281A31BB87C /* LocalBoardStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBoardStoreTests.swift; sourceTree = "<group>"; };
 		392829B9870C8878C5A4BB5A /* StudentTrackingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentTrackingListView.swift; sourceTree = "<group>"; };
 		53A5D7FAC861C1D3BA5238E0 /* ToastOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastOverlayView.swift; sourceTree = "<group>"; };
@@ -111,7 +109,6 @@
 			children = (
 				C96A84720919C759B00FCC66 /* CueStudentHeaderView.swift */,
 				562040BE56F3D806E2948FA4 /* FullScreenAlertView.swift */,
-				3368DBC82026F3DE221F2D6C /* StudentBoardView.swift */,
 				9DD351861F07BE85CEB809FB /* StudentEmptyEntryView.swift */,
 				F0D648D5879DF56CC4A7CD6C /* StudentReadyStripView.swift */,
 				392829B9870C8878C5A4BB5A /* StudentTrackingListView.swift */,
@@ -383,7 +380,6 @@
 				0182E881D7D00F074E5ABDF1 /* CueStudentHeaderView.swift in Sources */,
 				EB676055B1A410C9AAB7958D /* CueStudentViewModel.swift in Sources */,
 				B2BEF0003E4AED90C31B3DB3 /* FullScreenAlertView.swift in Sources */,
-				237402C820DD243C48DC272A /* StudentBoardView.swift in Sources */,
 				55F46FE04D29A5C2BD5F7061 /* StudentEmptyEntryView.swift in Sources */,
 				DD5E1FF7D7F17643FFDBDA43 /* StudentReadyStripView.swift in Sources */,
 				8EB062A1F6EEAB1C69E499DA /* StudentTrackingListView.swift in Sources */,
