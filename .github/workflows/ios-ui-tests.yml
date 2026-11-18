@@ -1,0 +1,119 @@
+name: iOS simulator UI tests
+
+# Boots iPhone simulators on a macOS runner, drives the student and staff apps with XCUITest,
+# and uploads screenshots, a screen recording and the xcresult. Test-only: builds nothing that ships.
+on:
+  workflow_dispatch:
+  push:
+    branches: [test/ios-sim-ui]
+
+concurrency:
+  group: ios-ui-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local:
+    name: UI tests (${{ matrix.size }}, local mode)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [small, large]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate test project
+        run: xcodegen generate --spec ios/project-uitests.yml --project ios
+      - name: Pick and boot simulator
+        id: sim
+        run: bash scripts/ci-pick-simulator.sh ${{ matrix.size }}
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/CueUITests.xcodeproj -scheme CueAllUITests \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            build-for-testing | tail -n 80
+      - name: Run UI tests (with screen recording)
+        env:
+          TEST_RUNNER_CUE_SHOT_DIR: ${{ github.workspace }}/out/shots
+          TEST_RUNNER_CUE_DEVICE_TAG: ${{ steps.sim.outputs.tag }}
+          TEST_RUNNER_CUE_MODE: local
+        run: |
+          mkdir -p out/shots
+          xcrun simctl io "${{ steps.sim.outputs.udid }}" recordVideo --codec=h264 --force "out/${{ steps.sim.outputs.tag }}-run.mp4" &
+          REC=$!
+          sleep 2
+          set +e
+          xcodebuild -project ios/CueUITests.xcodeproj -scheme CueAllUITests \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            -resultBundlePath "out/${{ steps.sim.outputs.tag }}.xcresult" \
+            -only-testing:CueUITests/StudentFlowTests -only-testing:CueStaffUITests/StaffFlowTests \
+            test-without-building 2>&1 | tee out/xcodebuild-test.log | grep -E "Test Case|error|failed|passed|XCTAssert" 
+          STATUS=${PIPESTATUS[0]}
+          kill -INT $REC; wait $REC || true
+          echo "xcodebuild exit: $STATUS"
+          exit $STATUS
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cue-ios-ui-${{ matrix.size }}
+          path: out
+          retention-days: 14
+
+  firebase:
+    name: Firebase smoke (large, live project, read-only)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write Firebase plists from secrets
+        id: fb
+        env:
+          STUDENT_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_STUDENT_BASE64 }}
+          STAFF_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_STAFF_BASE64 }}
+        run: |
+          if [ -z "$STUDENT_B64" ] || [ -z "$STAFF_B64" ]; then
+            echo "::warning::iOS Firebase plist secrets not set; skipping the Firebase smoke test."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          printf '%s' "$STUDENT_B64" | base64 --decode > ios/GoogleService-Info-student.plist
+          printf '%s' "$STAFF_B64" | base64 --decode > ios/GoogleService-Info-staff.plist
+          plutil -lint ios/GoogleService-Info-student.plist ios/GoogleService-Info-staff.plist >/dev/null
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+      - name: Install XcodeGen
+        if: steps.fb.outputs.enabled == 'true'
+        run: brew install xcodegen
+      - name: Generate test project
+        if: steps.fb.outputs.enabled == 'true'
+        run: xcodegen generate --spec ios/project-uitests.yml --project ios
+      - name: Pick and boot simulator
+        if: steps.fb.outputs.enabled == 'true'
+        id: sim
+        run: bash scripts/ci-pick-simulator.sh large
+      - name: Run Firebase smoke tests
+        if: steps.fb.outputs.enabled == 'true'
+        env:
+          TEST_RUNNER_CUE_SHOT_DIR: ${{ github.workspace }}/out/shots
+          TEST_RUNNER_CUE_DEVICE_TAG: ${{ steps.sim.outputs.tag }}
+          TEST_RUNNER_CUE_MODE: firebase
+        run: |
+          set -o pipefail
+          mkdir -p out/shots
+          xcodebuild -project ios/CueUITests.xcodeproj -scheme CueAllUITests \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            -resultBundlePath "out/firebase.xcresult" \
+            -only-testing:CueUITests/StudentFirebaseSmokeTests -only-testing:CueStaffUITests/StaffFirebaseSmokeTests \
+            test 2>&1 | tee out/xcodebuild-test.log | grep -E "Test Case|error:|failed|passed|Firebase ENABLED"
+      - name: Remove plists
+        if: always()
+        run: rm -f ios/GoogleService-Info-*.plist
+      - name: Upload results
+        if: always() && steps.fb.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cue-ios-ui-firebase
+          path: out
+          retention-days: 14

@@ -11,6 +11,26 @@ public final class RemoteSettingsService: ObservableObject {
     @Published public private(set) var settings = RemoteSettings()
 
     private var started = false
+    private var debugOverride = false
+
+    private init() {
+        #if DEBUG
+        // Debug builds only: simulator UI tests can force the update gate / banner with launch
+        // arguments, e.g. `-cueDebugMinVersion 99.0 -cueDebugAnnouncement "Hello"`.
+        let defaults = UserDefaults.standard
+        let forcedMin = defaults.string(forKey: "cueDebugMinVersion") ?? ""
+        let forcedBanner = defaults.string(forKey: "cueDebugAnnouncement") ?? ""
+        if !forcedMin.isEmpty || !forcedBanner.isEmpty {
+            var values = RemoteSettings.defaultValues
+            values[RemoteSettings.Key.minVersionStudent] = forcedMin
+            values[RemoteSettings.Key.minVersionStaff] = forcedMin
+            values[RemoteSettings.Key.announcement] = forcedBanner
+            values[RemoteSettings.Key.updateURL] = defaults.string(forKey: "cueDebugUpdateURL") ?? "https://apps.apple.com/"
+            settings = RemoteSettings(values: values)
+            debugOverride = true
+        }
+        #endif
+    }
 
     public static var installedVersion: String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0"
@@ -22,7 +42,7 @@ public final class RemoteSettingsService: ObservableObject {
 
     /// Call after `FirebaseApp.configure()`. Safe to call repeatedly.
     public func start() {
-        guard !started, FirebaseApp.app() != nil else { return }
+        guard !started, !debugOverride, FirebaseApp.app() != nil else { return }
         started = true
 
         let rc = RemoteConfig.remoteConfig()
