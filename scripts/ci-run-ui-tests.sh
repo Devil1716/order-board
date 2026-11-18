@@ -22,6 +22,10 @@ xcodebuild -project ios/CueUITests.xcodeproj -scheme CueAllUITests \
   test-without-building > "$OUT/$TAG-xcodebuild.log" 2>&1
 STATUS=$?
 kill -INT $REC; wait $REC 2>/dev/null || true
+# Artifact upload rejects some file names inside .xcresult bundles, so ship it zipped.
+if [ -d "$OUT/$TAG.xcresult" ]; then
+  (cd "$OUT" && ditto -c -k --keepParent "$TAG.xcresult" "$TAG.xcresult.zip" && rm -rf "$TAG.xcresult")
+fi
 grep -E "Test Case .*(passed|failed)|error: " "$OUT/$TAG-xcodebuild.log" || true
 xcrun simctl shutdown "$UDID" || true
 echo "== $TAG: xcodebuild exit $STATUS"
