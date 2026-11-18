@@ -106,6 +106,7 @@
     var App = N && N.isNative && N.plugin('App');
     if (App && App.addListener) {
       App.addListener('backButton', function () {
+        if (global.OBUpdatePrompt && global.OBUpdatePrompt.handleBack && global.OBUpdatePrompt.handleBack()) return;
         if (isOpen()) close();
         else if (App.exitApp) App.exitApp();
       });

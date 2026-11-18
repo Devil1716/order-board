@@ -5,7 +5,8 @@
   var uiReady = false, prevKinds = {};
   var notifyState = 'unsupported', notifyDismissed = false, NOTIFY_DISMISS_KEY = 'ob-notify-dismissed';
   var MAX_TOKEN = 200;
-  var APP_VERSION = '1.1.0';
+  var APP_VERSION = '1.2.0';
+  var ota = null;
   var first = true, lastReadySig = null;
   var minesCache = [];
   /** Map token → readyMs already acknowledged (no re-alert until readyMs changes) */
@@ -383,6 +384,8 @@
     }
     maybeAlert(now);
     syncWatch();
+    // A downloaded OTA bundle waits while an order is being tracked; it installs once the student is done.
+    if (ota) ota.setHold(tracking);
 
     first = false;
   }
@@ -561,6 +564,10 @@
     var initP = OBStore.init().catch(function () {});
     var chromeP = window.OBNative ? OBNative.setupChrome() : Promise.resolve();
     wireUi();
+    // UI is up: confirm this web bundle booted (else the updater rolls back), then look for an OTA update.
+    if (window.OBOta) ota = OBOta.init(window).start();
+    // Android: 'Update required' / 'Update available' prompt driven by Remote Config.
+    if (window.OBAppUpdate) window.OBUpdatePrompt = OBAppUpdate.init(window, 'student').start();
 
     settings = OBSettings.create({ get: OBNative.prefsGet, set: OBNative.prefsSet }, { sound: true, vibration: true });
     var loaded = await Promise.all([

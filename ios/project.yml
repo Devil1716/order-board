@@ -28,10 +28,24 @@ targets:
       - name: Copy Firebase Config if Present
         basedOnDependencyAnalysis: false
         script: |
-          if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
-            cp "${SRCROOT}/GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
-          elif [ -f "${SRCROOT}/../GoogleService-Info.plist" ]; then
-            cp "${SRCROOT}/../GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          # Per-app Firebase config: GoogleService-Info-student.plist (git-ignored; CI writes it from a base64 secret).
+          # Falls back to a shared GoogleService-Info.plist, and to local mode (no Firebase) when neither exists.
+          DEST="${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          SRC=""
+          for CAND in "${SRCROOT}/GoogleService-Info-student.plist" "${SRCROOT}/GoogleService-Info.plist" "${SRCROOT}/../GoogleService-Info.plist"; do
+            if [ -f "$CAND" ]; then SRC="$CAND"; break; fi
+          done
+          rm -f "$DEST"
+          if [ -n "$SRC" ]; then
+            PLIST_BUNDLE=`/usr/libexec/PlistBuddy -c "Print :BUNDLE_ID" "$SRC" 2>/dev/null || true`
+            if [ -n "$PLIST_BUNDLE" ] && [ "$PLIST_BUNDLE" != "$PRODUCT_BUNDLE_IDENTIFIER" ]; then
+              echo "error: ${SRC##*/} is for bundle id $PLIST_BUNDLE but this target is $PRODUCT_BUNDLE_IDENTIFIER"
+              exit 1
+            fi
+            cp "$SRC" "$DEST"
+            echo "note: Firebase ENABLED for student using ${SRC##*/}"
+          else
+            echo "warning: no GoogleService-Info plist found for student: building in LOCAL mode (no Firebase)"
           fi
     settings:
       base:
@@ -62,10 +76,24 @@ targets:
       - name: Copy Firebase Config if Present
         basedOnDependencyAnalysis: false
         script: |
-          if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
-            cp "${SRCROOT}/GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
-          elif [ -f "${SRCROOT}/../GoogleService-Info.plist" ]; then
-            cp "${SRCROOT}/../GoogleService-Info.plist" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          # Per-app Firebase config: GoogleService-Info-staff.plist (git-ignored; CI writes it from a base64 secret).
+          # Falls back to a shared GoogleService-Info.plist, and to local mode (no Firebase) when neither exists.
+          DEST="${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"
+          SRC=""
+          for CAND in "${SRCROOT}/GoogleService-Info-staff.plist" "${SRCROOT}/GoogleService-Info.plist" "${SRCROOT}/../GoogleService-Info.plist"; do
+            if [ -f "$CAND" ]; then SRC="$CAND"; break; fi
+          done
+          rm -f "$DEST"
+          if [ -n "$SRC" ]; then
+            PLIST_BUNDLE=`/usr/libexec/PlistBuddy -c "Print :BUNDLE_ID" "$SRC" 2>/dev/null || true`
+            if [ -n "$PLIST_BUNDLE" ] && [ "$PLIST_BUNDLE" != "$PRODUCT_BUNDLE_IDENTIFIER" ]; then
+              echo "error: ${SRC##*/} is for bundle id $PLIST_BUNDLE but this target is $PRODUCT_BUNDLE_IDENTIFIER"
+              exit 1
+            fi
+            cp "$SRC" "$DEST"
+            echo "note: Firebase ENABLED for staff using ${SRC##*/}"
+          else
+            echo "warning: no GoogleService-Info plist found for staff: building in LOCAL mode (no Firebase)"
           fi
     settings:
       base:

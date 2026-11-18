@@ -7,8 +7,8 @@ android {
         applicationId "in.sharan.orderboard"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.1.0"
+        versionCode 3
+        versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +16,28 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // One fixed signing key, so every new APK installs over the previous one. CI decodes it from the
+    // ANDROID_KEYSTORE_BASE64 secret and exports CUE_KEYSTORE_FILE / CUE_KEYSTORE_PASSWORD / CUE_KEY_ALIAS /
+    // CUE_KEY_PASSWORD. Without them (forks, a fresh laptop) builds fall back to that machine's debug key.
+    def cueKeystore = System.getenv('CUE_KEYSTORE_FILE')
+    signingConfigs {
+        if (cueKeystore && file(cueKeystore).exists()) {
+            cue {
+                storeFile file(cueKeystore)
+                storePassword System.getenv('CUE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('CUE_KEY_ALIAS') ?: 'cue'
+                keyPassword System.getenv('CUE_KEY_PASSWORD') ?: System.getenv('CUE_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (signingConfigs.findByName('cue')) signingConfig signingConfigs.cue
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingConfigs.findByName('cue')) signingConfig signingConfigs.cue
         }
     }
 }
@@ -51,4 +69,12 @@ try {
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// @capgo/capacitor-updater hard-codes work-runtime 2.10.x, which needs compileSdk 35. This project compiles
+// against 34, so pin the last release that does. Remove when compileSdk/AGP move to 35.
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.work:work-runtime:2.9.1'
+    }
 }

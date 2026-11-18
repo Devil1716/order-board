@@ -3,7 +3,8 @@
   var POOL = 200;
   var snd = false, ac = null;
   var settings = null;
-  var APP_VERSION = '1.0.0';
+  var APP_VERSION = '1.2.0';
+  var ota = null;
   var undoFn = null, toastT = null;
   var typed = '', showAllP = false, showAllR = false;
 
@@ -402,6 +403,10 @@
   async function boot() {
     if (window.OBNative) await OBNative.setupChrome();
     await initSettings();
+    // UI is up: confirm this web bundle booted (else the updater rolls back), then look for an OTA update.
+    if (window.OBOta) ota = OBOta.init(window).start();
+    // Android: 'Update required' / 'Update available' prompt driven by Remote Config.
+    if (window.OBAppUpdate) window.OBUpdatePrompt = OBAppUpdate.init(window, 'staff').start();
     if (window.ORDER_BOARD_STAFF_APP && window.ORDER_BOARD_FIREBASE) {
       showAuth('');
       $('staff-auth-form').onsubmit = async function (event) {
