@@ -1,0 +1,71 @@
+name: iOS simulator UI tests
+
+# Boots iPhone simulators on one macOS runner, drives the student and staff apps with XCUITest,
+# and uploads screenshots, screen recordings and xcresults. Test-only: nothing here ships.
+on:
+  workflow_dispatch:
+  push:
+    branches: [test/ios-sim-ui]
+
+concurrency:
+  group: ios-ui-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-tests:
+    name: UI tests (small + large iPhone, local + Firebase smoke)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate test project
+        run: xcodegen generate --spec ios/project-uitests.yml --project ios
+      - name: Build for testing (local mode, no Firebase)
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/CueUITests.xcodeproj -scheme CueAllUITests \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            build-for-testing > build-local.log 2>&1 || { tail -n 120 build-local.log; exit 1; }
+          grep -E "warning: no GoogleService" build-local.log | head -2 || true
+      - name: Small iPhone (local mode)
+        id: small
+        continue-on-error: true
+        run: bash scripts/ci-run-ui-tests.sh small local CueUITests/StudentFlowTests CueStaffUITests/StaffFlowTests
+      - name: Large iPhone (local mode)
+        id: large
+        continue-on-error: true
+        run: bash scripts/ci-run-ui-tests.sh large local CueUITests/StudentFlowTests CueStaffUITests/StaffFlowTests
+      - name: Firebase smoke (live project, read-only)
+        id: firebase
+        continue-on-error: true
+        env:
+          STUDENT_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_STUDENT_BASE64 }}
+          STAFF_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_STAFF_BASE64 }}
+        run: |
+          if [ -z "$STUDENT_B64" ] || [ -z "$STAFF_B64" ]; then
+            echo "::warning::iOS Firebase plist secrets not set; skipping the Firebase smoke test."; exit 0
+          fi
+          printf '%s' "$STUDENT_B64" | base64 --decode > ios/GoogleService-Info-student.plist
+          printf '%s' "$STAFF_B64" | base64 --decode > ios/GoogleService-Info-staff.plist
+          plutil -lint ios/GoogleService-Info-student.plist ios/GoogleService-Info-staff.plist >/dev/null
+          xcodebuild -project ios/CueUITests.xcodeproj -scheme CueAllUITests \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            build-for-testing > build-firebase.log 2>&1 || { tail -n 120 build-firebase.log; exit 1; }
+          grep -E "Firebase ENABLED" build-firebase.log | head -2 || true
+          bash scripts/ci-run-ui-tests.sh large firebase CueUITests/StudentFirebaseSmokeTests CueStaffUITests/StaffFirebaseSmokeTests
+      - name: Remove plists
+        if: always()
+        run: rm -f ios/GoogleService-Info-*.plist
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cue-ios-ui-tests
+          path: out
+          retention-days: 14
+      - name: Overall result
+        run: |
+          echo "small=${{ steps.small.outcome }} large=${{ steps.large.outcome }} firebase=${{ steps.firebase.outcome }}"
+          test "${{ steps.small.outcome }}" = success && test "${{ steps.large.outcome }}" = success && test "${{ steps.firebase.outcome }}" = success

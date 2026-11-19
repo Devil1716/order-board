@@ -1,0 +1,52 @@
+# Test-only XcodeGen spec: the real app targets from project.yml plus simulator UI-test bundles.
+# CI generates ios/CueUITests.xcodeproj from this (never committed); the shipped Cue.xcodeproj is untouched.
+include:
+  - path: project.yml
+name: CueUITests
+
+targets:
+  CueUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: UITests/Shared
+      - path: UITests/Student
+    dependencies:
+      - target: Cue
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Cue
+        DEVELOPMENT_TEAM: ""
+
+  CueStaffUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: UITests/Shared
+      - path: UITests/Staff
+    dependencies:
+      - target: CueStaff
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard.staff.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: CueStaff
+        DEVELOPMENT_TEAM: ""
+
+schemes:
+  CueAllUITests:
+    build:
+      targets:
+        Cue: all
+        CueStaff: all
+        CueUITests: [test]
+        CueStaffUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - CueUITests
+        - CueStaffUITests

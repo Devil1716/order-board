@@ -2,11 +2,6 @@ import SwiftUI
 import Combine
 import CueCore
 
-public enum StudentViewMode: String, CaseIterable {
-    case myOrders = "My Orders"
-    case board = "Board View"
-}
-
 @MainActor
 public class CueStudentViewModel: ObservableObject {
     public let store: BoardStore
@@ -15,7 +10,7 @@ public class CueStudentViewModel: ObservableObject {
     @Published public var trackedTokens: [Int] = []
     @Published public var syncLabel: String = ""
     @Published public var tokenInput: String = ""
-    @Published public var viewMode: StudentViewMode = .myOrders
+    @Published public var showSettings: Bool = false
 
     // Ready alert state
     @Published public var alertToken: Int? = nil
@@ -117,19 +112,6 @@ public class CueStudentViewModel: ObservableObject {
             if trackedTokens.isEmpty {
                 KeepAwakeService.setKeepAwake(false)
             }
-        }
-    }
-
-    public func markCollected(_ token: Int) {
-        if alertToken == token {
-            dismissAlert()
-        }
-        HapticsService.impact()
-        NotificationService.cancelNotification(token: token)
-
-        Task {
-            let now = Int64(Date().timeIntervalSince1970 * 1000)
-            _ = try? await store.write(token: token, fields: OrderWriteFields(collectedMs: now))
         }
     }
 

@@ -21,10 +21,10 @@ public struct CueTheme {
 
     // Light mode palette
     public struct Light {
-        public static let bg = Color(hex: "#f0f0f0")
+        public static let bg = Color(hex: "#ffffff")
         public static let ink = Color(hex: "#111111")
         public static let mute = Color(hex: "#666666")
-        public static let card = Color(hex: "#ffffff")
+        public static let card = Color(hex: "#f1f1f3")
         public static let line = Color(hex: "#d0d0d0")
         public static let tileBg = Color(hex: "#cfcfcf")
         public static let readyTileBg = Color(hex: "#d8d8d8")

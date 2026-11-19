@@ -51,6 +51,8 @@ targets:
       base:
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+        MARKETING_VERSION: "1.2.0"
+        CURRENT_PROJECT_VERSION: "1"
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard
         PRODUCT_NAME: Cue
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -99,6 +101,8 @@ targets:
       base:
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+        MARKETING_VERSION: "1.2.0"
+        CURRENT_PROJECT_VERSION: "1"
         PRODUCT_BUNDLE_IDENTIFIER: in.sharan.orderboard.staff
         PRODUCT_NAME: CueStaff
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
