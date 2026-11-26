@@ -2,7 +2,7 @@ var capacitorKeepAwake = (function (exports, core) {
     'use strict';
 
     const KeepAwake = core.registerPlugin('KeepAwake', {
-        web: () => Promise.resolve().then(function () { return web; }).then(m => new m.KeepAwakeWeb()),
+        web: () => Promise.resolve().then(function () { return web; }).then((m) => new m.KeepAwakeWeb()),
     });
 
     class KeepAwakeWeb extends core.WebPlugin {
@@ -63,9 +63,6 @@ var capacitorKeepAwake = (function (exports, core) {
 
     exports.KeepAwake = KeepAwake;
 
-    Object.defineProperty(exports, '__esModule', { value: true });
-
     return exports;
 
 })({}, capacitorExports);
-//# sourceMappingURL=plugin.js.map

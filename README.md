@@ -4,8 +4,8 @@ Two separate apps for a restaurant / cafe **token board**:
 
 | App | Package / Bundle ID | Who uses it |
 |---|---|---|
-| **Cue** (Student) | `in.sharan.orderboard` | Students / customers — enter token, watch the board, get ready alerts |
-| **Cue Staff** | `in.sharan.orderboard.staff` | Counter staff — give tokens, mark ready, hand over |
+| **Cue** (Student) | Android `in.quicko.cue` (iOS bundle id still `in.sharan.orderboard`) | Students / customers — enter token, watch the board, get ready alerts |
+| **Cue Staff** | Android `in.quicko.cue.staff` (iOS bundle id still `in.sharan.orderboard.staff`) | Counter staff — give tokens, mark ready, hand over |
 
 Native **SwiftUI iOS apps** (iOS 16+, Swift 5.9+) in `ios/Cue.xcodeproj` alongside Android Capacitor apps in `apps/*/android`. **No Display/Staff tabs** — each role is its own installable app.
 

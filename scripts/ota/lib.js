@@ -36,7 +36,7 @@ function requireChannel(value) {
 /** The APK's versionName: the native shell version a bundle is compatible with. */
 function nativeVersionName(app) {
   const gradle = fs.readFileSync(path.join(root, 'apps', app, 'android', 'app', 'build.gradle'), 'utf8');
-  const m = gradle.match(/versionName\s+"([^"]+)"/);
+  const m = gradle.match(/versionName\s*=?\s*"([^"]+)"/);
   if (!m) throw new Error('versionName not found for ' + app);
   return m[1];
 }

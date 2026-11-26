@@ -2,7 +2,7 @@
   "name": "order-board",
   "version": "1.0.0",
   "private": true,
-  "description": "Cue monorepo (order-board) — Student + Staff Capacitor apps",
+  "description": "Cue monorepo (order-board) \u2014 Student + Staff Capacitor apps",
   "workspaces": [
     "apps/student",
     "apps/staff"
@@ -21,7 +21,10 @@
     "ota:build": "node scripts/ota/build-bundle.js"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.2.0",
+    "@capacitor/cli": "^8.6.3",
     "adm-zip": "^0.5.18"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

@@ -29,17 +29,17 @@ test('cleanVersion accepts real versions only', () => {
 test('readConfig picks the app keys and drops unsafe links', () => {
   const entries = {
     min_version_student_android: '1.2.0', latest_version_student_android: '1.3.0',
-    min_version_staff_android: '9.9.9', update_url_android: 'https://play.google.com/store/apps/details?id=in.sharan.orderboard',
+    min_version_staff_android: '9.9.9', update_url_android: 'https://play.google.com/store/apps/details?id=in.quicko.cue',
     update_message: 'Please update.'
   };
   assert.deepEqual(U.readConfig(entries, 'student'), {
-    min: '1.2.0', latest: '1.3.0', url: 'https://play.google.com/store/apps/details?id=in.sharan.orderboard', message: 'Please update.'
+    min: '1.2.0', latest: '1.3.0', url: 'https://play.google.com/store/apps/details?id=in.quicko.cue', message: 'Please update.'
   });
   assert.equal(U.readConfig(entries, 'staff').min, '9.9.9');
   assert.equal(U.readConfig(entries, 'staff').latest, '');
   assert.equal(U.readConfig({ update_url_android: 'http://insecure/cue.apk' }, 'student').url, '');
   assert.equal(U.readConfig({ update_url_android: 'javascript:alert(1)' }, 'student').url, '');
-  assert.equal(U.readConfig({ update_url_android: 'market://details?id=in.sharan.orderboard' }, 'student').url, 'market://details?id=in.sharan.orderboard');
+  assert.equal(U.readConfig({ update_url_android: 'market://details?id=in.quicko.cue' }, 'student').url, 'market://details?id=in.quicko.cue');
   assert.deepEqual(U.readConfig(null, 'student'), { min: '', latest: '', url: '', message: '' });
 });
 
@@ -210,13 +210,13 @@ test('remoteconfig.template.json declares every Android update key, all off by d
   for (const [k, v] of Object.entries(t.parameters)) assert.ok((v.description || '').length <= 256, k + ' description too long');
 });
 
-test('both apps load app-update.js and both APK versions are a valid, matching 1.2.0', () => {
+test('both apps load app-update.js and both APK versions are a valid, matching 1.3.0', () => {
   for (const app of ['student', 'staff']) {
     const root = path.join(__dirname, '..', 'apps', app);
     assert.match(fs.readFileSync(path.join(root, 'www', 'index.html'), 'utf8'), /js\/app-update\.js/);
     const gradle = fs.readFileSync(path.join(root, 'android', 'app', 'build.gradle'), 'utf8');
-    assert.equal(U.cleanVersion(gradle.match(/versionName\s+"([^"]+)"/)[1]), '1.2.0');
-    assert.match(fs.readFileSync(path.join(root, 'www', 'js', 'app.js'), 'utf8'), /APP_VERSION = '1\.2\.0'/);
+    assert.equal(U.cleanVersion(gradle.match(/versionName\s*=?\s*"([^"]+)"/)[1]), '1.3.0');
+    assert.match(fs.readFileSync(path.join(root, 'www', 'js', 'app.js'), 'utf8'), /APP_VERSION = '1\.3\.0'/);
   }
 });
 

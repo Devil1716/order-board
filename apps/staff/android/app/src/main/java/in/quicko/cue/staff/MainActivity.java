@@ -1,4 +1,4 @@
-package in.sharan.orderboard.staff;
+package in.quicko.cue.staff;
 
 import com.getcapacitor.BridgeActivity;
 

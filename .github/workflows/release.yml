@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: npm }
+        with: { node-version: "22", cache: npm }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
       - run: npm ci
@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: npm }
+        with: { node-version: "22", cache: npm }
       - run: npm ci
       - name: Firebase credentials
         run: |
@@ -133,7 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+        with: { node-version: "22" }
       - name: Deploy
         run: |
           set -euo pipefail
@@ -158,9 +158,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: npm }
+        with: { node-version: "22", cache: npm }
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: "17" }
+        with: { distribution: temurin, java-version: "21" }
       - run: npm ci
       - run: npm run sync-shared
       - name: Build APKs (signed with the fixed Cue key)
@@ -179,7 +179,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Cue-android-apks-${{ needs.plan.outputs.channel }}
-          path: out/*.apk
+          path: |
+            out/*.apk
+            out/*.aab
           if-no-files-found: error
           retention-days: 30
       - name: Attach APKs to the tag's GitHub Release
@@ -190,7 +192,7 @@ jobs:
           set -euo pipefail
           FLAGS="--generate-notes"
           [ "$OTA_CHANNEL" = "beta" ] && FLAGS="$FLAGS --prerelease"
-          gh release create "$GITHUB_REF_NAME" out/*.apk $FLAGS
+          gh release create "$GITHUB_REF_NAME" out/*.apk out/*.aab $FLAGS
 
   ios:
     name: iOS build + tests
