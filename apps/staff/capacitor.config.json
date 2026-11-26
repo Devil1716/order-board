@@ -23,7 +23,8 @@
       "autoUpdate": false,
       "appReadyTimeout": 10000,
       "resetWhenUpdate": true,
-      "responseTimeout": 20
+      "responseTimeout": 20,
+      "statsUrl": ""
     }
   }
 }

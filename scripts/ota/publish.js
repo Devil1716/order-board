@@ -33,7 +33,8 @@ async function assemble(opts) {
   const repo = opts.repo || process.env.GITHUB_REPOSITORY || L.DEFAULT_REPO;
   fs.rmSync(site, { recursive: true, force: true });
   fs.mkdirSync(site, { recursive: true });
-  fs.copyFileSync(path.join(L.root, 'hosting', 'index.html'), path.join(site, 'index.html'));
+  // Static pages (index.html, privacy.html, ...) ship with every deploy; manifests are added below.
+  fs.cpSync(path.join(L.root, 'hosting'), site, { recursive: true });
 
   const publishing = {};
   for (const m of opts.manifests || []) {

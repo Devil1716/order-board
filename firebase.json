@@ -45,7 +45,8 @@
           }
         ]
       }
-    ]
+    ],
+    "cleanUrls": true
   },
   "remoteconfig": {
     "template": "remoteconfig.template.json"
