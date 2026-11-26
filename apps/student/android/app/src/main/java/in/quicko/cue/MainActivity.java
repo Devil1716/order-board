@@ -1,4 +1,4 @@
-package in.sharan.orderboard;
+package in.quicko.cue;
 
 import android.os.Bundle;
 

@@ -2,6 +2,57 @@
 
 Most changes ship **over the air**. Only native changes need a new APK / App Store build.
 
+## How to ship an update
+
+There are two ways to get a change onto phones. Pick the first one whenever you can.
+
+### 1. Over-the-air (OTA) update: no store review
+
+Use this for anything inside the web bundle: screens, text, colours, CSS, and JavaScript logic in `shared/` or `apps/*/www`.
+
+1. Merge the change to `main` and check it in a browser or on the emulator.
+2. Publish the bundle: `npm run release:ota -- --channel prod --apps student,staff --notes "What changed"`
+   (or push a tag like `v1.3.1`, and the Release workflow does it). Try `--channel beta` first if you want a small test group.
+3. Phones download it in the background and switch to it the next time the app goes to the background or restarts.
+   A student is never interrupted while an order is being tracked.
+4. If something is wrong, roll back with `npm run release:ota:rollback -- --channel prod --app student --to <older version>`.
+
+An OTA bundle only reaches phones whose installed app is new enough (`minNativeVersion`, default: the current
+`versionName`). A bundle built from 1.3.0 code never lands on a 1.2.0 app.
+
+### 2. Store update: needed for native changes
+
+Use this when the change touches native code or settings: Capacitor or plugin upgrades, Java code, permissions,
+`AndroidManifest.xml`, SDK levels, the app icon, or a new Firebase project.
+
+1. **Bump the version** in `apps/<app>/android/app/build.gradle`: `versionName` (for example `1.4.0`) and `versionCode`
+   (+1, it must always go up). Also set `APP_VERSION` in `apps/<app>/www/js/app.js` to match.
+2. **Build a signed bundle** with the Cue key `cue-release.jks`. Locally: export `CUE_KEYSTORE_FILE`, `CUE_KEYSTORE_PASSWORD`,
+   `CUE_KEY_ALIAS`, `CUE_KEY_PASSWORD`, then run `npm run sync-shared && bash scripts/build-apks.sh out`. This produces
+   `out/Cue-<app>.aab` (for Play) and `out/Cue-<app>.apk` (for direct installs). CI does the same from the
+   `ANDROID_KEYSTORE_*` secrets. The same key must be used forever, so keep an offline backup of it.
+3. **Upload the `.aab` to Google Play.** Quicko can do this as an invited user on the client's (SRT's) Play Console, so the
+   apps sit in the client's account while Quicko does the releases. Go Internal testing → Production, and fill in
+   "What's new".
+4. **Ask people to update.** Once Play shows the new version as live, set Remote Config
+   `latest_version_<app>_android` (shows a dismissible "Update available" sheet) or `min_version_<app>_android`
+   (blocks the app until it is updated) to the new `versionName`, and publish. Android uses Play's in-app update when
+   Play has the new version. See "Ask people to install a new app version" below.
+
+### Moving to a client-owned Firebase project
+
+The apps currently talk to the `cue-orderboard-sharan` Firebase project. To move to a project the client (SRT) owns:
+
+1. The client creates the Firebase / Google Cloud project (region `asia-south1`, Mumbai) and adds Quicko's Google
+   account as **Editor**, so Quicko can deploy and run it.
+2. Quicko recreates the setup there: Firestore with the same rules and indexes, email sign-in for staff with the
+   `staff/{uid}` records, Remote Config from `remoteconfig.template.json`, and Hosting for the privacy page and OTA manifests.
+3. The new web config (`shared/js/firebase-config.js`), the OTA address (`OTA_BASE_URL`, default in
+   `scripts/sync-shared.js` and `scripts/ota/lib.js`) and the CI secrets change, so this ships as a **store update**:
+   a new version for all phones.
+4. After that store update is installed, later OTA updates are published to and served from the client's project as usual.
+   Keep the old project running until every phone is on the new version.
+
 ## What can and can't go OTA
 
 | Change | Android apps (Capacitor) | iOS apps (native SwiftUI) |
@@ -115,8 +166,8 @@ also reused by the Release workflow for iOS). Scripts: `scripts/release-ota.js`,
 | Secret | Used by | What |
 |---|---|---|
 | `FIREBASE_SERVICE_ACCOUNT` | Release: `ota`, `firebase` | Service-account **JSON** for project `cue-orderboard-sharan` with roles *Firebase Hosting Admin*, *Firebase Rules Admin* and *Firebase Remote Config Admin* (plus *Cloud Datastore Index Admin* if you deploy indexes). |
-| `IOS_GOOGLE_SERVICE_INFO_STUDENT_BASE64` | `ios.yml` | `base64 -i GoogleService-Info-student.plist` (bundle id `in.sharan.orderboard`) |
-| `IOS_GOOGLE_SERVICE_INFO_STAFF_BASE64` | `ios.yml` | `base64 -i GoogleService-Info-staff.plist` (bundle id `in.sharan.orderboard.staff`) |
+| `IOS_GOOGLE_SERVICE_INFO_STUDENT_BASE64` | `ios.yml` | `base64 -i GoogleService-Info-student.plist` (iOS bundle id `in.sharan.orderboard`) |
+| `IOS_GOOGLE_SERVICE_INFO_STAFF_BASE64` | `ios.yml` | `base64 -i GoogleService-Info-staff.plist` (iOS bundle id `in.sharan.orderboard.staff`) |
 | `IOS_BUILD_CERTIFICATE_BASE64`, `IOS_BUILD_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64`, `IOS_TEAM_ID` | `ios.yml` signing probe | Optional, only for future signed IPAs |
 
 `GITHUB_TOKEN` is automatic (the workflow requests `contents: write` for releases). Do not paste secret values anywhere in the repo.

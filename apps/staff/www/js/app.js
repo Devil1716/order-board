@@ -3,7 +3,7 @@
   var POOL = 200;
   var snd = false, ac = null;
   var settings = null;
-  var APP_VERSION = '1.2.0';
+  var APP_VERSION = '1.3.0';
   var ota = null;
   var undoFn = null, toastT = null;
   var typed = '', showAllP = false, showAllR = false;

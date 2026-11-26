@@ -130,6 +130,21 @@
     } catch (e) { return 'light'; }
   }
 
+  /**
+   * Status bar icons follow the theme: dark icons on the light theme, light icons on the dark one. Android 15+ draws the
+   * app edge-to-edge and ignores a status bar colour, so the bar shows the app background and the icons must contrast.
+   */
+  function paintBars(theme) {
+    if (!isNative) return;
+    var SB = plugin('StatusBar');
+    if (!SB) return;
+    var dark = theme === 'dark';
+    try {
+      if (SB.setStyle) Promise.resolve(SB.setStyle({ style: dark ? 'DARK' : 'LIGHT' })).catch(function () {});
+      if (SB.setBackgroundColor) Promise.resolve(SB.setBackgroundColor({ color: dark ? '#0b0b0d' : '#ffffff' })).catch(function () {});
+    } catch (e) {}
+  }
+
   function applyThemeAttr(theme) {
     var root = document.documentElement;
     if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
@@ -138,6 +153,7 @@
       var meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute('content', '#e60023');
     } catch (e) {}
+    paintBars(resolvedTheme(theme));
   }
 
   function resolvedTheme(saved) {
@@ -215,8 +231,7 @@
     var SS = plugin('SplashScreen');
     // Independent bridge calls: run them side by side instead of one after another.
     var tasks = [];
-    if (SB && SB.setBackgroundColor) tasks.push(function () { return SB.setBackgroundColor({ color: '#e60023' }); });
-    if (SB && SB.setStyle) tasks.push(function () { return SB.setStyle({ style: 'DARK' }); });
+    if (SB) tasks.push(function () { paintBars(resolvedTheme(document.documentElement.getAttribute('data-theme'))); });
     if (SS && SS.hide) tasks.push(function () { return SS.hide(); });
     await Promise.all(tasks.map(function (run) {
       return new Promise(function (resolve) {
@@ -234,8 +249,6 @@
     watchSync: function (payload) { return watchCall('sync', payload); },
     watchClear: function (token) { return watchCall('clear', { token: token }); },
     watchClearAll: function () { return watchCall('clearAll'); },
-    batteryStatus: function () { return watchCall('batteryStatus'); },
-    requestBatteryExemption: function () { return watchCall('requestBatteryExemption'); },
     requestNotifyPermission: requestNotifyPermission,
     notifyStatus: notifyStatus,
     openNotificationSettings: function () { return watchCall('openNotificationSettings'); },

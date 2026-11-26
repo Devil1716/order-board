@@ -5,7 +5,7 @@
   var uiReady = false, prevKinds = {};
   var notifyState = 'unsupported', notifyDismissed = false, NOTIFY_DISMISS_KEY = 'ob-notify-dismissed';
   var MAX_TOKEN = 200;
-  var APP_VERSION = '1.2.0';
+  var APP_VERSION = '1.3.0';
   var ota = null;
   var first = true, lastReadySig = null;
   var minesCache = [];
@@ -485,11 +485,6 @@
 
   function askNotifyPermission() {
     refreshNotifyCard();
-    showBatteryHint();
-  }
-
-  /** Samsung and others stop background apps: Settings offers the one-tap "don't optimise Cue" dialog. */
-  function showBatteryHint() {
     if (settingsUI) settingsUI.refresh();
   }
 
@@ -598,7 +593,7 @@
     uiReady = true;
     render();
     refreshNotifyCard();
-    showBatteryHint();
+    if (settingsUI) settingsUI.refresh();
     setInterval(function () { if (!document.hidden) render(); }, 30000);
   }
 

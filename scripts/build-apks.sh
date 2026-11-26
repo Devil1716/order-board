@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the student + staff APKs into OUT_DIR (default: out) as Cue-<app><SUFFIX>.apk.
+# Builds the student + staff APKs into OUT_DIR (default: out) as Cue-<app><SUFFIX>.apk, plus signed
+# Play Store bundles (Cue-<app><SUFFIX>.aab) when a release key is available.
 #
 # Signing: with ANDROID_KEYSTORE_BASE64 + ANDROID_KEYSTORE_PASSWORD (CI secrets), or CUE_KEYSTORE_FILE +
 # CUE_KEYSTORE_PASSWORD (a local keystore), it builds *release* APKs signed with the fixed Cue key, so each
@@ -28,8 +29,14 @@ fi
 TASK="assemble$(tr '[:lower:]' '[:upper:]' <<< "${VARIANT:0:1}")${VARIANT:1}"
 
 for a in student staff; do
-  (cd "apps/$a" && npx cap sync android && cd android && chmod +x gradlew && ./gradlew "$TASK" --no-daemon)
+  TASKS=("$TASK")
+  [ "$VARIANT" = release ] && TASKS+=(bundleRelease)
+  (cd "apps/$a" && npx cap sync android && cd android && chmod +x gradlew && ./gradlew "${TASKS[@]}" --no-daemon)
   cp "apps/$a/android/app/build/outputs/apk/$VARIANT/app-$VARIANT.apk" "$OUT_DIR/Cue-$a$SUFFIX.apk"
   echo "Built $OUT_DIR/Cue-$a$SUFFIX.apk ($VARIANT)"
+  if [ "$VARIANT" = release ]; then
+    cp "apps/$a/android/app/build/outputs/bundle/release/app-release.aab" "$OUT_DIR/Cue-$a$SUFFIX.aab"
+    echo "Built $OUT_DIR/Cue-$a$SUFFIX.aab (Play Store bundle)"
+  fi
   keytool -printcert -jarfile "$OUT_DIR/Cue-$a$SUFFIX.apk" 2>/dev/null | grep -m1 'SHA256:' || true
 done

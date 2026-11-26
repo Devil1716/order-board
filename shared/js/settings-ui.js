@@ -73,17 +73,6 @@
         else if (st === 'prompt') { sub.textContent = 'Not allowed yet.'; btn.textContent = 'Allow'; }
         else { sub.textContent = 'Not available here.'; btn.hidden = true; }
       }
-      if ($('rowBg')) {
-        var show = !!(N && N.hasWatcher());
-        $('rowBg').hidden = !show;
-        if (show) {
-          var r = await N.batteryStatus();
-          var ok = !!(r && r.unrestricted);
-          $('bgState').textContent = ok ? 'Allowed — alerts arrive even when Cue is closed.' : 'Restricted — alerts may be late when Cue is closed.';
-          $('bgBtn').hidden = ok;
-          if (!ok) needs = true;
-        }
-      }
       attention = needs;
       $('settingsBtn').classList.toggle('dot', attention);
     }
@@ -138,11 +127,6 @@
         if (st === 'denied') await N.openNotificationSettings();
         else await N.requestNotifyPermission();
         setTimeout(paintAlerts, 800);
-      };
-    }
-    if ($('bgBtn')) {
-      $('bgBtn').onclick = function () {
-        N.requestBatteryExemption().then(function () { setTimeout(paintAlerts, 1500); });
       };
     }
     if ($('signOutBtn')) {

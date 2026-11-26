@@ -1,6 +1,7 @@
 var capacitorStatusBar = (function (exports, core) {
     'use strict';
 
+    /// <reference types="@capacitor/cli" />
     exports.Style = void 0;
     (function (Style) {
         /**
@@ -19,7 +20,6 @@ var capacitorStatusBar = (function (exports, core) {
          * The style is based on the device appearance.
          * If the device is using Dark mode, the statusbar text will be light.
          * If the device is using Light mode, the statusbar text will be dark.
-         * On Android the default will be the one the app was launched with.
          *
          * @since 1.0.0
          */
@@ -66,9 +66,6 @@ var capacitorStatusBar = (function (exports, core) {
     exports.StatusBarAnimation = StatusBarAnimation;
     exports.StatusBarStyle = StatusBarStyle;
 
-    Object.defineProperty(exports, '__esModule', { value: true });
-
     return exports;
 
 })({}, capacitorExports);
-//# sourceMappingURL=plugin.js.map

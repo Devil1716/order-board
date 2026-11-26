@@ -1,4 +1,4 @@
-package in.sharan.orderboard;
+package in.quicko.cue;
 
 import android.content.Context;
 import android.content.SharedPreferences;

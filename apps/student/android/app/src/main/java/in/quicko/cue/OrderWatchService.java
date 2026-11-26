@@ -1,4 +1,4 @@
-package in.sharan.orderboard;
+package in.quicko.cue;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -81,6 +81,17 @@ public class OrderWatchService extends Service {
             loop.start();
         }
         return START_STICKY;
+    }
+
+    /**
+     * Android 15+ caps dataSync foreground services at 6 h per day and calls this when the cap is hit.
+     * Orders go stale after 4 h anyway, so just stop cleanly (not stopping here would crash the app).
+     */
+    @Override
+    public void onTimeout(int startId, int fgsType) {
+        Log.w(TAG, "foreground service time limit reached, stopping watcher");
+        running = false;
+        stopSelf();
     }
 
     @Override
